@@ -1,4 +1,7 @@
 packages:
   - "apps/*"
+  - "shared/*"
 allowBuilds:
   esbuild: true
+  "@prisma/engines": true
+  prisma: true

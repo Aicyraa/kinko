@@ -1,3 +1,7 @@
+# generated
+/src/generated/
+/dist/
+
 # dev
 .yarn/
 !.yarn/releases
@@ -26,3 +30,5 @@ lerna-debug.log*
 
 # misc
 .DS_Store
+
+/src/generated/prisma

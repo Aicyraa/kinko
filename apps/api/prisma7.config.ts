@@ -9,6 +9,10 @@ export default defineConfig({
   datasource: {
     // Neon: migrations and Studio must use the DIRECT (non-pooled) connection.
     // The app itself uses the pooled DATABASE_URL through @prisma/adapter-neon.
-    url: process.env.DIRECT_URL ?? process.env.DATABASE_URL ?? "",
+    url:
+      process.env.DIRECT_URL ??
+      process.env.DATABASE_URL_UNPOOLED ??
+      process.env.DATABASE_URL ??
+      "",
   },
 });

@@ -85,7 +85,7 @@ const storageSchema = z.object({
  * ------------------------------------------------------------------ */
 
 const authSchema = z.object({
-  NEON_COOKIE_SECRET: z
+  NEON_AUTH_COOKIE_SECRET: z
     .string()
     .min(32, "Secret must be at least 32 characters")
     .regex(

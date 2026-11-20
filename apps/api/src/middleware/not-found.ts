@@ -1,12 +1,12 @@
-import type { NotFoundHandler } from 'hono'
+import type { NotFoundHandler } from 'hono';
 
-export const notFound: NotFoundHandler = c => {
+export const notFound: NotFoundHandler = (c) => {
 	return c.json(
 		{
 			status: 'not found',
 			code: 404,
-			path: c.req.path
+			path: c.req.path,
 		},
-		404
-	)
-}
+		404,
+	);
+};

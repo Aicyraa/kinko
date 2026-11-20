@@ -1,8 +1,8 @@
 {
-  "extends": ["./tsconfig.base.json"],
-  "compilerOptions": {
-    "noEmit": false,
-    "allowImportingTsExtensions": false,
-    "rewriteRelativeImportExtensions": true,
-  }
+	"extends": ["./tsconfig.base.json"],
+	"compilerOptions": {
+		"noEmit": false,
+		"allowImportingTsExtensions": false,
+		"rewriteRelativeImportExtensions": true
+	}
 }

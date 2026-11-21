@@ -100,10 +100,9 @@ const authSchema = z.object({
 	NEON_AUTH_URL: z.url('NEON_AUTH_URL must be a valid URL'),
 });
 
-
 const clientSchema = z.object({
-    CLIENT_BASE_URL: z.url()
-})
+	CLIENT_BASE_URL: z.url(),
+});
 /* ------------------------------------------------------------------ *
  * Combine, validate, export
  * ------------------------------------------------------------------ */
@@ -112,7 +111,7 @@ const envSchema = runtimeSchema
 	.merge(databaseSchema)
 	.merge(storageSchema)
 	.merge(authSchema)
-    .merge(clientSchema)
+	.merge(clientSchema)
 	.superRefine((value, ctx) => {
 		if (value.STORAGE_BUCKET_TRASH === value.STORAGE_BUCKET_UPLOADS) {
 			ctx.addIssue({

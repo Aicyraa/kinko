@@ -8,7 +8,7 @@ export const auth = new Hono()
 		const { data } = await serverAuth.getSession();
 		if (!data?.session)
 			return c.json({ status: 'not authenticated', code: 401 }, 401);
-		c.json({ status: 'successfull', user: data.user });
+		return c.json({ status: 'successfull', user: data.user });
 	})
 	.all('/*', async (c) => {
 		const path = c.req.path.replace(/^\/api\/v1\/auth\/?/, '');

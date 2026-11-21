@@ -1,18 +1,15 @@
 {
-    "compilerOptions": {
-      "target": "ESNext",
-      "module": "NodeNext",
-      "strict": true,
-      "verbatimModuleSyntax": true,
-      "skipLibCheck": true,
-      "types": [
-        "node"
-      ],
-      "jsxImportSource": "hono/jsx",
-      "rootDir": "./src",
-      "outDir": "./dist"
-    },
-    "include": ["src/**/*"],
-    "exclude": ["node_modules", "dist"]
-  }
-  
+	"compilerOptions": {
+		"target": "ESNext",
+		"module": "NodeNext",
+		"strict": true,
+		"verbatimModuleSyntax": true,
+		"skipLibCheck": true,
+		"types": ["node"],
+		"jsxImportSource": "hono/jsx",
+		"rootDir": "./src",
+		"outDir": "./dist"
+	},
+	"include": ["src/**/*", "./prisma7.config.ts"],
+	"exclude": ["node_modules", "dist"]
+}

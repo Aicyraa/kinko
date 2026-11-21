@@ -20,8 +20,25 @@ export const serverAuth = createAuthServer({
 					{ append: true },
 				),
 			getHeader: (name) => c.req.header(name) ?? null,
-			getOrigin: () => c.req.header('origin') ?? '',
+			getOrigin: () => {
+				const origin = c.req.header('origin');
+				if (origin) return origin;
+
+				const referer = c.req.header('referer');
+				if (referer) {
+					try {
+						return new URL(referer).origin;
+					} catch {
+						// malformed Referer — fall through to configured client URL
+					}
+				}
+
+				// Non-browser callers (Bruno, backend jobs) send neither header.
+				return new URL(env.CLIENT_BASE_URL).origin;
+			},
 			getFramework: () => 'hono',
 		};
 	},
 });
+
+

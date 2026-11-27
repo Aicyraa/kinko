@@ -1,6 +1,7 @@
 {
 	"json.schemaDownload.trustedDomains": {
 		"https://turborepo.dev": true,
-        "https://biomejs.dev/schemas/2.6.8": true,
+		"https://biomejs.dev/schemas/2.6.8": true,
+		"https://ui.shadcn.com": true
 	}
 }

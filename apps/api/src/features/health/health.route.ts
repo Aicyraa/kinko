@@ -1,8 +1,9 @@
 import { Hono } from 'hono';
-import { prisma } from '../lib/prisma.ts';
+import { prisma } from '../../lib/prisma.ts';
 
 export const health = new Hono().get('/', async (c) => {
 	const [date, time] = new Date().toISOString().split('T');
+1
 
 	try {
 		const start = performance.now();

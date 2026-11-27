@@ -4,5 +4,6 @@
 		"noEmit": false,
 		"allowImportingTsExtensions": false,
 		"rewriteRelativeImportExtensions": true
-	}
+	},
+	"include": ["src/**/*"]
 }

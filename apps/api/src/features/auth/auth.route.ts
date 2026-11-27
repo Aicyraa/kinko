@@ -1,10 +1,15 @@
 import { Hono } from 'hono'
-import { SignUpSchema, SingInSchema } from './auth.schema.ts'
-import { checkSession, neonHandler, signin, signup } from './auth.controller.ts'
-import { zValidator } from '@hono/zod-validator'
+import {
+	checkSession,
+	neonHandler,
+	signin,
+	signout,
+	signup,
+} from './auth.controller.ts'
 
 export const auth = new Hono()
 	.get('/me', ...checkSession)
-	.post('/signup', zValidator('form', SignUpSchema), ...signup)
-    .post('/signin', zValidator('form', SingInSchema), ...signin)
-    .all('/*', ...neonHandler)
+	.post('/signup', ...signup)
+	.post('/signin', ...signin)
+	.post('/signout', ...signout)
+	.all('/*', ...neonHandler)

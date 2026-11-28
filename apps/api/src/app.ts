@@ -4,8 +4,11 @@ import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
 import { env } from './env.ts';
 import { auth } from './features/auth/auth.route.ts';
+import { files } from './features/files/files.route.ts';
+import { folder } from './features/folder/folder.route.ts';
 import { health } from './features/health/health.route.ts';
 import { tenant } from './features/tenant/tenant.route.ts';
+import { uploads } from './features/uploads/uploads.route.ts';
 import { errorHandler } from './middleware/errorHandler.ts';
 import { requestLogger } from './middleware/logger.ts';
 import { notFound } from './middleware/notFound.ts';
@@ -48,7 +51,10 @@ app.notFound(notFound);
 const routes = app
 	.route('/health', health)
 	.route('/auth', auth)
-	.route('/tenants', tenant);
+	.route('/tenants', tenant)
+	.route('/folders', folder)
+	.route('/files', files)
+	.route('/uploads', uploads);
 
 export type AppType = typeof routes;
 export default app;

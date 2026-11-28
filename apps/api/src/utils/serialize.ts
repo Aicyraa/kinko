@@ -1,10 +1,12 @@
 import type {
 	File,
+	FileVersion,
 	Folder,
 	Tenant,
 	TenantAnalytics,
 	TenantMember,
 	Upload,
+	UploadPart,
 	UserProfile,
 } from '../generated/prisma/client.js';
 
@@ -75,10 +77,33 @@ export interface UploadDTO {
 	declaredSizeBytes: number;
 	status: Upload['status'];
 	isMultipart: boolean;
+	partSizeBytes: number | null;
+	totalParts: number | null;
 	expiresAt: string;
 	completedAt: string | null;
 	createdAt: string;
 	updatedAt: string;
+}
+
+export interface UploadPartDTO {
+	id: string;
+	uploadId: string;
+	partNumber: number;
+	eTag: string;
+	sizeBytes: number;
+	createdAt: string;
+}
+
+export interface FileVersionDTO {
+	id: string;
+	tenantId: string;
+	fileId: string;
+	versionNumber: number;
+	mimeType: string;
+	sizeBytes: number;
+	checksumSha256: string | null;
+	uploadedById: string;
+	createdAt: string;
 }
 
 export function serializeTenant(tenant: Tenant): TenantDTO {
@@ -157,9 +182,36 @@ export function serializeUpload(upload: Upload): UploadDTO {
 		declaredSizeBytes: Number(upload.declaredSizeBytes),
 		status: upload.status,
 		isMultipart: upload.isMultipart,
+		partSizeBytes: upload.partSizeBytes,
+		totalParts: upload.totalParts,
 		expiresAt: upload.expiresAt.toISOString(),
 		completedAt: upload.completedAt ? upload.completedAt.toISOString() : null,
 		createdAt: upload.createdAt.toISOString(),
 		updatedAt: upload.updatedAt.toISOString(),
+	};
+}
+
+export function serializeUploadPart(part: UploadPart): UploadPartDTO {
+	return {
+		id: part.id,
+		uploadId: part.uploadId,
+		partNumber: part.partNumber,
+		eTag: part.eTag,
+		sizeBytes: Number(part.sizeBytes),
+		createdAt: part.createdAt.toISOString(),
+	};
+}
+
+export function serializeFileVersion(version: FileVersion): FileVersionDTO {
+	return {
+		id: version.id,
+		tenantId: version.tenantId,
+		fileId: version.fileId,
+		versionNumber: version.versionNumber,
+		mimeType: version.mimeType,
+		sizeBytes: Number(version.sizeBytes),
+		checksumSha256: version.checksumSha256,
+		uploadedById: version.uploadedById,
+		createdAt: version.createdAt.toISOString(),
 	};
 }

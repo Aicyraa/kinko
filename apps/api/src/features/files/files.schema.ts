@@ -14,6 +14,24 @@ export const FileIdParamSchema = z.object({
 	fileId: z.string().uuid('Invalid file ID'),
 });
 
+export const FileVersionParamSchema = z.object({
+	fileId: z.string().uuid('Invalid file ID'),
+	versionId: z.string().uuid('Invalid version ID'),
+});
+
+export const CreateFileVersionSchema = z.object({
+	mimeType: z
+		.string()
+		.trim()
+		.min(1, 'MIME type is required')
+		.max(150, 'MIME type is too long')
+		.default('application/octet-stream'),
+	sizeBytes: z.coerce
+		.number()
+		.int('Size must be an integer')
+		.positive('File size must be greater than 0'),
+});
+
 export const ListFilesQuerySchema = z.object({
 	folderId: z.union([z.string().uuid(), z.literal('root')]).optional(),
 	page: z.coerce.number().int().min(1).default(1),

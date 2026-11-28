@@ -236,6 +236,9 @@ importers:
       '@types/node':
         specifier: ^26.1.1
         version: 26.6.6
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
       neon:
         specifier: ^9.6.0
         version: 9.6.0(hono@4.13.18)
@@ -5711,7 +5714,7 @@ snapshots:
     dependencies:
       '@neon/config': 1.14.2
       '@vercel/nft': 1.11.5
-      esbuild: 0.28.1
+      esbuild: 0.28.2
       fflate: 0.8.3
     transitivePeerDependencies:
       - encoding
@@ -7799,6 +7802,7 @@ snapshots:
       '@esbuild/win32-arm64': 0.28.1
       '@esbuild/win32-ia32': 0.28.1
       '@esbuild/win32-x64': 0.28.1
+    optional: true
 
   esbuild@0.28.2:
     optionalDependencies:

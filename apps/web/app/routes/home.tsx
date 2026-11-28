@@ -1,6 +1,6 @@
+import { Navigate } from 'react-router';
 import { AuthForm } from '../components/auth/auth-form';
 import { AuthShell } from '../components/auth/auth-shell';
-import { WorkspaceHome } from '../components/auth/workspace-home';
 import { useSession } from '../hooks/use-auth';
 import type { Route } from './+types/home';
 
@@ -29,7 +29,7 @@ export default function Home() {
 	}
 
 	if (session) {
-		return <WorkspaceHome session={session} />;
+		return <Navigate to="/files" replace />;
 	}
 
 	return (

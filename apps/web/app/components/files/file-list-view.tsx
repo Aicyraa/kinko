@@ -1,5 +1,6 @@
 import {
 	Download,
+	Eye,
 	Folder,
 	FolderInput,
 	MoreHorizontal,
@@ -38,6 +39,7 @@ interface FileListViewProps {
 	onMove: (target: VaultTarget) => void;
 	onDelete: (target: VaultTarget) => void;
 	onDownload: (fileId: string) => void;
+	onPreview: (file: FileItem) => void;
 }
 
 export function FileListView({
@@ -51,6 +53,7 @@ export function FileListView({
 	onMove,
 	onDelete,
 	onDownload,
+	onPreview,
 }: FileListViewProps) {
 	return (
 		<div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -177,7 +180,11 @@ export function FileListView({
 									/>
 								</TableCell>
 								<TableCell className="max-w-xs">
-									<div className="flex items-center gap-3 min-w-0">
+									<button
+										type="button"
+										onClick={() => onPreview(file)}
+										className="flex items-center gap-3 min-w-0 max-w-full text-left hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+									>
 										<div className="size-7 rounded-md bg-secondary border border-border flex items-center justify-center shrink-0">
 											<FileTypeIcon
 												mimeType={file.mimeType}
@@ -186,7 +193,7 @@ export function FileListView({
 											/>
 										</div>
 										<span className="font-medium truncate">{file.name}</span>
-									</div>
+									</button>
 								</TableCell>
 								<TableCell className="hidden sm:table-cell text-xs font-mono text-muted-foreground">
 									{getFileKindLabel(file.mimeType, file.name)}
@@ -209,6 +216,10 @@ export function FileListView({
 											</button>
 										</DropdownMenuTrigger>
 										<DropdownMenuContent align="end">
+											<DropdownMenuItem onClick={() => onPreview(file)}>
+												<Eye className="size-4 mr-2" aria-hidden="true" />
+												Preview
+											</DropdownMenuItem>
 											<DropdownMenuItem onClick={() => onDownload(file.id)}>
 												<Download className="size-4 mr-2" aria-hidden="true" />
 												Download

@@ -5,13 +5,13 @@
 	"exports": {
 		"./app": {
 			"types": "./src/app.ts",
-			"default": "./dist/app.js"
+			"default": "./dist/index.js"
 		}
 	},
 	"scripts": {
 		"check-types": "prisma generate && tsc --noEmit",
 		"dev": "prisma generate && tsx watch --tsconfig ./tsconfig.json src/",
-		"build": "prisma generate && tsc -p tsconfig.build.json && node --input-type=module -e \"import { writeFileSync } from 'node:fs'; writeFileSync('dist/package.json', JSON.stringify({ type: 'module' }) + '\\n');\"",
+		"build": "prisma generate && node scripts/build.mjs",
 		"start": "node dist/index.js",
 		"test": "vitest run",
 		"lint": "biome lint .",
@@ -46,6 +46,7 @@
 	"devDependencies": {
 		"@types/archiver": "^8.0.0",
 		"@types/node": "^26.1.1",
+		"esbuild": "^0.28.2",
 		"neon": "^9.6.0",
 		"pino-pretty": "^13.2.0",
 		"prisma": "7.10.1",

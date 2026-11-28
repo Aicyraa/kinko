@@ -23,7 +23,9 @@
 		"db:studio": "prisma studio",
 		"db:validate": "prisma validate",
 		"db:seed": "tsx prisma/seed.ts",
-		"jobs:cleanup-trash": "tsx src/scripts/cleanup-trash.ts"
+		"jobs:cleanup-trash": "tsx src/scripts/cleanup-trash.ts",
+		"jobs:verify-ops": "tsx src/scripts/verify-ops.ts",
+		"postinstall": "prisma generate"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1170.0",

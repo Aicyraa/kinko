@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server';
 import { app } from './app.ts';
 import { env } from './env.ts';
 import { purgeExpiredTrash } from './features/trash/trash.cleanup.ts';
+import { cleanupExpiredUploads } from './features/uploads/uploads.cleanup.ts';
 import { logger } from './lib/logger.ts';
 import { prisma } from './lib/prisma.ts';
 
@@ -18,6 +19,9 @@ if (!process.env.VERCEL) {
 	const cleanupTimer = setInterval(() => {
 		void purgeExpiredTrash().catch((err) => {
 			logger.error({ err }, 'scheduled trash cleanup failed');
+		});
+		void cleanupExpiredUploads().catch((err) => {
+			logger.error({ err }, 'scheduled upload cleanup failed');
 		});
 	}, CLEANUP_INTERVAL_MS);
 	cleanupTimer.unref();

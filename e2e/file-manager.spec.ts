@@ -57,6 +57,9 @@ test.describe('Kinko File Manager UI (#33-#43)', () => {
 			.click();
 		await expect(page).toHaveURL(/\/files$/, { timeout: 10_000 });
 		await expect(
+			page.getByRole('heading', { name: 'Kinko Studio — Brand & Product' }),
+		).toBeVisible({ timeout: 10_000 });
+		await expect(
 			page.getByRole('link', { name: /01 Brand & Design/ }),
 		).toBeVisible({
 			timeout: 10_000,
@@ -71,7 +74,7 @@ test.describe('Kinko File Manager UI (#33-#43)', () => {
 		const folderDialog = page.getByRole('dialog');
 		await expect(folderDialog).toBeVisible();
 		await folderDialog.getByLabel('Folder Name').fill(folderName);
-		await folderDialog.getByLabel('Folder Name').press('Enter');
+		await folderDialog.getByRole('button', { name: 'Create Folder' }).click();
 		await expect(
 			page.getByRole('link', { name: new RegExp(folderName) }),
 		).toBeVisible({ timeout: 10_000 });

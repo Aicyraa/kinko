@@ -3,6 +3,8 @@ import { contextStorage } from 'hono/context-storage';
 import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
 import { env } from './env.ts';
+import { activities } from './features/activities/activities.route.ts';
+import { analytics } from './features/analytics/analytics.route.ts';
 import { auth } from './features/auth/auth.route.ts';
 import { files } from './features/files/files.route.ts';
 import { folder } from './features/folder/folder.route.ts';
@@ -58,7 +60,9 @@ const routes = app
 	.route('/files', files)
 	.route('/uploads', uploads)
 	.route('/trash', trash)
-	.route('/search', search);
+	.route('/search', search)
+	.route('/analytics', analytics)
+	.route('/activities', activities);
 
 export type AppType = typeof routes;
 export default app;

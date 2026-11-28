@@ -1,5 +1,6 @@
 import {
 	ArrowDownUp,
+	CopyCheck,
 	FolderPlus,
 	LayoutGrid,
 	List,
@@ -17,6 +18,12 @@ import {
 import { useDropzone } from 'react-dropzone';
 import { useSearchParams } from 'react-router';
 import { toast } from 'sonner';
+import {
+	useDownloadZip,
+	useDuplicates,
+	useFavorites,
+	useToggleFavorite,
+} from '../../hooks/use-advanced';
 import { useSession } from '../../hooks/use-auth';
 import {
 	type SortField,
@@ -32,7 +39,7 @@ import {
 	useRenameFolder,
 } from '../../hooks/use-files';
 import { useUploadQueue } from '../../hooks/use-upload-queue';
-import { ApiError, type FileItem } from '../../lib/api';
+import { ApiError, type FileItem, type FolderItem } from '../../lib/api';
 import { getActiveTenant } from '../layout/app-shell';
 import { Button } from '../ui/button';
 import {
@@ -42,6 +49,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '../ui/select';
+import { DuplicatesDialog } from './duplicates-dialog';
 import { FileBreadcrumbs } from './file-breadcrumbs';
 import {
 	CreateFolderDialog,
@@ -58,7 +66,9 @@ import {
 	FileManagerError,
 	FileManagerSkeleton,
 } from './file-states';
+import { FileVersionsDialog } from './file-versions-dialog';
 import { SelectionBar } from './selection-bar';
+import { SharePermissionsDialog } from './share-permissions-dialog';
 
 const VIEW_MODE_KEY = 'kinko:view-mode';
 
@@ -89,11 +99,18 @@ export function FileManagerView({ folderId }: { folderId: string | null }) {
 	const [moveTargets, setMoveTargets] = useState<VaultTarget[]>([]);
 	const [deleteTargets, setDeleteTargets] = useState<VaultTarget[]>([]);
 	const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
+	const [shareFile, setShareFile] = useState<FileItem | null>(null);
+	const [versionsFile, setVersionsFile] = useState<FileItem | null>(null);
+	const [duplicatesOpen, setDuplicatesOpen] = useState(false);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const { enqueueFiles } = useUploadQueue();
 
 	const listingQuery = useFolderListing(tenantId, folderId, sortBy, sortOrder);
+	const favoritesQuery = useFavorites(tenantId);
+	const duplicatesQuery = useDuplicates(tenantId);
+	const toggleFavorite = useToggleFavorite(tenantId);
+	const downloadZip = useDownloadZip(tenantId);
 	const createFolder = useCreateFolder(tenantId);
 	const renameFolder = useRenameFolder(tenantId);
 	const moveFolder = useMoveFolder(tenantId);
@@ -102,6 +119,15 @@ export function FileManagerView({ folderId }: { folderId: string | null }) {
 	const moveFile = useMoveFile(tenantId);
 	const deleteFile = useDeleteFile(tenantId);
 	const downloadFile = useDownloadFile(tenantId);
+
+	const favoriteFileIds = useMemo(
+		() => new Set(favoritesQuery.data?.fileIds ?? []),
+		[favoritesQuery.data?.fileIds],
+	);
+	const favoriteFolderIds = useMemo(
+		() => new Set(favoritesQuery.data?.folderIds ?? []),
+		[favoritesQuery.data?.folderIds],
+	);
 
 	// Clear selection when navigating folders or switching workspaces
 	// biome-ignore lint/correctness/useExhaustiveDependencies: reset selection on route/tenant change
@@ -313,6 +339,64 @@ export function FileManagerView({ folderId }: { folderId: string | null }) {
 		}
 	}
 
+	async function handleToggleFavorite(
+		targetType: 'FILE' | 'FOLDER',
+		targetId: string,
+		isFavorite: boolean,
+	) {
+		try {
+			await toggleFavorite.mutateAsync({ targetType, targetId, isFavorite });
+			toast.success(
+				isFavorite ? 'Removed from favorites' : 'Added to favorites',
+			);
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : 'Failed to update favorites.',
+			);
+		}
+	}
+
+	async function handleDownloadSelectedZip() {
+		const fileIds = selectedTargets
+			.filter((t) => t.kind === 'file')
+			.map((t) => t.id);
+		const folderIds = selectedTargets
+			.filter((t) => t.kind === 'folder')
+			.map((t) => t.id);
+		if (fileIds.length + folderIds.length === 0) return;
+
+		try {
+			await downloadZip.mutateAsync({
+				fileIds,
+				folderIds,
+				archiveName:
+					listingQuery.data?.folder?.name ?? activeTenant?.name ?? 'kinko-vault',
+			});
+			toast.success('ZIP archive downloaded');
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : 'Failed to create ZIP archive.',
+			);
+		}
+	}
+
+	async function handleDownloadFolderZip(folder: FolderItem) {
+		try {
+			await downloadZip.mutateAsync({
+				fileIds: [],
+				folderIds: [folder.id],
+				archiveName: folder.name,
+			});
+			toast.success(`Downloaded "${folder.name}.zip"`);
+		} catch (err) {
+			toast.error(
+				err instanceof ApiError ? err.message : 'Failed to download folder ZIP.',
+			);
+		}
+	}
+
+	const duplicateGroups = duplicatesQuery.data?.groups ?? [];
+
 	const isEmpty =
 		!listingQuery.isLoading &&
 		!listingQuery.isError &&
@@ -430,6 +514,19 @@ export function FileManagerView({ folderId }: { folderId: string | null }) {
 						<ArrowDownUp className="size-3.5" aria-hidden="true" />
 						<span>{sortOrder.toUpperCase()}</span>
 					</Button>
+
+					{duplicateGroups.length > 0 && (
+						<Button
+							type="button"
+							variant="outline"
+							size="xs"
+							onClick={() => setDuplicatesOpen(true)}
+							className="h-8 px-2.5 font-mono"
+						>
+							<CopyCheck className="size-3.5" aria-hidden="true" />
+							<span>Duplicates ({duplicateGroups.length})</span>
+						</Button>
+					)}
 				</div>
 
 				{/* Grid / List View Switcher */}
@@ -502,11 +599,19 @@ export function FileManagerView({ folderId }: { folderId: string | null }) {
 					folders={folders}
 					files={files}
 					selectedKeys={selectedKeys}
+					favoriteFileIds={favoriteFileIds}
+					favoriteFolderIds={favoriteFolderIds}
 					onToggleSelect={toggleSelect}
+					onToggleFavorite={(type, id, isFav) =>
+						void handleToggleFavorite(type, id, isFav)
+					}
 					onRename={setRenameTarget}
 					onMove={(t) => setMoveTargets([t])}
 					onDelete={(t) => setDeleteTargets([t])}
 					onDownload={(id) => void handleDownload(id)}
+					onDownloadFolderZip={(folder) => void handleDownloadFolderZip(folder)}
+					onShare={setShareFile}
+					onVersions={setVersionsFile}
 					onPreview={setPreviewFile}
 				/>
 			) : (
@@ -514,13 +619,21 @@ export function FileManagerView({ folderId }: { folderId: string | null }) {
 					folders={folders}
 					files={files}
 					selectedKeys={selectedKeys}
+					favoriteFileIds={favoriteFileIds}
+					favoriteFolderIds={favoriteFolderIds}
 					allSelected={allSelected}
 					onToggleSelectAll={toggleSelectAll}
 					onToggleSelect={toggleSelect}
+					onToggleFavorite={(type, id, isFav) =>
+						void handleToggleFavorite(type, id, isFav)
+					}
 					onRename={setRenameTarget}
 					onMove={(t) => setMoveTargets([t])}
 					onDelete={(t) => setDeleteTargets([t])}
 					onDownload={(id) => void handleDownload(id)}
+					onDownloadFolderZip={(folder) => void handleDownloadFolderZip(folder)}
+					onShare={setShareFile}
+					onVersions={setVersionsFile}
 					onPreview={setPreviewFile}
 				/>
 			)}
@@ -528,6 +641,8 @@ export function FileManagerView({ folderId }: { folderId: string | null }) {
 			<SelectionBar
 				count={selectedTargets.length}
 				onMove={() => setMoveTargets(selectedTargets)}
+				onDownloadZip={() => void handleDownloadSelectedZip()}
+				isZipDownloading={downloadZip.isPending}
 				onDelete={() => setDeleteTargets(selectedTargets)}
 				onClear={() => setSelectedKeys(new Set())}
 			/>
@@ -568,6 +683,40 @@ export function FileManagerView({ folderId }: { folderId: string | null }) {
 				tenantId={tenantId}
 				onClose={() => setPreviewFile(null)}
 				onSelectFile={setPreviewFile}
+			/>
+
+			<SharePermissionsDialog
+				file={shareFile}
+				tenantId={tenantId}
+				onClose={() => setShareFile(null)}
+			/>
+
+			<FileVersionsDialog
+				file={versionsFile}
+				tenantId={tenantId}
+				onClose={() => setVersionsFile(null)}
+			/>
+
+			<DuplicatesDialog
+				open={duplicatesOpen}
+				groups={duplicateGroups}
+				totalWastedBytes={duplicatesQuery.data?.totalWastedBytes ?? 0}
+				onClose={() => setDuplicatesOpen(false)}
+				onPreview={(file) => {
+					setDuplicatesOpen(false);
+					setPreviewFile(file);
+				}}
+				onDeleteFile={(file) => {
+					setDuplicatesOpen(false);
+					setDeleteTargets([
+						{
+							kind: 'file',
+							id: file.id,
+							name: file.name,
+							folderId: file.folderId,
+						},
+					]);
+				}}
 			/>
 		</div>
 	);

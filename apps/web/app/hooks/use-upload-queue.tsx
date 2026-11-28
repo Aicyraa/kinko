@@ -7,11 +7,13 @@ import {
 	useRef,
 	useState,
 } from 'react';
+import { toast } from 'sonner';
 import {
 	ApiError,
 	api,
 	parseApiResponse,
 	tenantHeaders,
+	type UploadCompletePayload,
 	type UploadIntentPayload,
 } from '../lib/api';
 import { AUTH_QUERY_KEY } from './use-auth';
@@ -30,6 +32,8 @@ export interface UploadTask {
 	fileName: string;
 	sizeBytes: number;
 	folderId: string | null;
+	targetFileId?: string | null;
+	multipartUploadId?: string | null;
 	tenantId: string;
 	status: UploadTaskStatus;
 	progress: number;
@@ -42,6 +46,10 @@ interface UploadQueueContextValue {
 		files: File[],
 		options: { tenantId: string; folderId: string | null },
 	) => void;
+	enqueueVersionUpload: (
+		file: File,
+		options: { tenantId: string; fileId: string },
+	) => void;
 	retryTask: (taskId: string) => void;
 	cancelTask: (taskId: string) => void;
 	dismissTask: (taskId: string) => void;
@@ -49,6 +57,9 @@ interface UploadQueueContextValue {
 }
 
 const UploadQueueContext = createContext<UploadQueueContextValue | null>(null);
+
+const MULTIPART_THRESHOLD_BYTES = 5 * 1024 * 1024;
+const MULTIPART_PART_SIZE_BYTES = 5 * 1024 * 1024;
 
 async function computeSha256Hex(file: File): Promise<string | undefined> {
 	if (typeof crypto === 'undefined' || !crypto.subtle) return undefined;
@@ -64,13 +75,13 @@ async function computeSha256Hex(file: File): Promise<string | undefined> {
 	}
 }
 
-function uploadWithXhr(
+function uploadBlobWithXhr(
 	url: string,
-	file: File,
+	body: Blob,
 	headers: Record<string, string>,
-	onProgress: (pct: number) => void,
+	onProgress: (loadedBytes: number) => void,
 	registerXhr: (xhr: XMLHttpRequest) => void,
-): Promise<void> {
+): Promise<{ eTag: string | null }> {
 	return new Promise((resolve, reject) => {
 		const xhr = new XMLHttpRequest();
 		registerXhr(xhr);
@@ -83,15 +94,15 @@ function uploadWithXhr(
 		}
 
 		xhr.upload.onprogress = (event) => {
-			if (event.lengthComputable && event.total > 0) {
-				onProgress(Math.round((event.loaded / event.total) * 100));
+			if (event.lengthComputable) {
+				onProgress(event.loaded);
 			}
 		};
 
 		xhr.onload = () => {
 			if (xhr.status >= 200 && xhr.status < 300) {
-				onProgress(100);
-				resolve();
+				onProgress(body.size);
+				resolve({ eTag: xhr.getResponseHeader('ETag') });
 			} else {
 				reject(new Error(`Storage upload failed (${xhr.status})`));
 			}
@@ -99,7 +110,7 @@ function uploadWithXhr(
 
 		xhr.onerror = () => reject(new Error('Network error during file upload'));
 		xhr.onabort = () => reject(new Error('Upload cancelled'));
-		xhr.send(file);
+		xhr.send(body);
 	});
 }
 
@@ -117,6 +128,135 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
 		[],
 	);
 
+	const runMultipartUpload = useCallback(
+		async (task: UploadTask, mimeType: string) => {
+			const headers = tenantHeaders(task.tenantId);
+			let uploadId = task.multipartUploadId ?? null;
+			let partSizeBytes = MULTIPART_PART_SIZE_BYTES;
+			let remainingPartNumbers: number[] = [];
+			let completedBytes = 0;
+
+			if (uploadId) {
+				const stateRes = await api.api.v1.uploads.multipart[':uploadId'].$get(
+					{ param: { uploadId } },
+					{ headers },
+				);
+				const state = await parseApiResponse<{
+					upload: {
+						status: string;
+						partSizeBytes: number | null;
+						totalParts: number | null;
+					};
+					completedParts: Array<{ partNumber: number; sizeBytes: number }>;
+					remainingPartNumbers: number[];
+				}>(stateRes);
+
+				if (state.upload.status === 'IN_PROGRESS') {
+					partSizeBytes = state.upload.partSizeBytes ?? MULTIPART_PART_SIZE_BYTES;
+					remainingPartNumbers = state.remainingPartNumbers;
+					completedBytes = state.completedParts.reduce(
+						(sum, p) => sum + p.sizeBytes,
+						0,
+					);
+				} else {
+					uploadId = null;
+				}
+			}
+
+			if (!uploadId) {
+				const initRes = await api.api.v1.uploads.multipart.$post(
+					{
+						json: {
+							fileName: task.fileName,
+							mimeType,
+							sizeBytes: task.sizeBytes,
+							folderId: task.folderId,
+							fileId: task.targetFileId ?? null,
+							partSizeBytes,
+						},
+					},
+					{ headers },
+				);
+				const init = await parseApiResponse<{
+					upload: { id: string };
+					partSizeBytes: number;
+					totalParts: number;
+				}>(initRes);
+				uploadId = init.upload.id;
+				partSizeBytes = init.partSizeBytes;
+				remainingPartNumbers = Array.from(
+					{ length: init.totalParts },
+					(_, i) => i + 1,
+				);
+				updateTask(task.id, { multipartUploadId: uploadId });
+			}
+
+			for (const partNumber of remainingPartNumbers) {
+				const start = (partNumber - 1) * partSizeBytes;
+				const end = Math.min(task.sizeBytes, start + partSizeBytes);
+				const chunk = task.file.slice(start, end);
+
+				const urlRes = await api.api.v1.uploads.multipart[':uploadId'].parts[
+					':partNumber'
+				].url.$post(
+					{
+						param: { uploadId, partNumber: String(partNumber) },
+					},
+					{ headers },
+				);
+				const { uploadUrl } = await parseApiResponse<{ uploadUrl: string }>(
+					urlRes,
+				);
+
+				const { eTag } = await uploadBlobWithXhr(
+					uploadUrl,
+					chunk,
+					{},
+					(loaded) => {
+						const pct = Math.min(
+							99,
+							Math.round(((completedBytes + loaded) / task.sizeBytes) * 100),
+						);
+						updateTask(task.id, { progress: pct });
+					},
+					(xhr) => xhrMapRef.current.set(task.id, xhr),
+				);
+
+				if (!eTag) {
+					throw new Error('Storage did not expose part ETag header');
+				}
+
+				const recordRes = await api.api.v1.uploads.multipart[':uploadId'].parts[
+					':partNumber'
+				].$post(
+					{
+						param: { uploadId, partNumber: String(partNumber) },
+						json: { eTag, sizeBytes: chunk.size },
+					},
+					{ headers },
+				);
+				await parseApiResponse(recordRes);
+				completedBytes += chunk.size;
+			}
+
+			xhrMapRef.current.delete(task.id);
+			updateTask(task.id, { status: 'verifying', progress: 100 });
+
+			const checksumSha256 = await computeSha256Hex(task.file);
+			const completeRes = await api.api.v1.uploads.multipart[
+				':uploadId'
+			].complete.$post(
+				{
+					param: { uploadId },
+					json: checksumSha256 ? { checksumSha256 } : {},
+				},
+				{ headers },
+			);
+			return parseApiResponse<UploadCompletePayload>(completeRes);
+		},
+		[updateTask],
+	);
+
 	const runUpload = useCallback(
 		async (task: UploadTask) => {
 			const headers = tenantHeaders(task.tenantId);
@@ -128,46 +268,71 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
 
 			try {
 				const mimeType = task.file.type || 'application/octet-stream';
-				const [checksumSha256, intentRes] = await Promise.all([
-					computeSha256Hex(task.file),
-					api.api.v1.uploads.$post(
+				let completed: UploadCompletePayload;
+
+				if (task.sizeBytes > MULTIPART_THRESHOLD_BYTES) {
+					completed = await runMultipartUpload(task, mimeType);
+				} else {
+					const [checksumSha256, intentRes] = await Promise.all([
+						computeSha256Hex(task.file),
+						task.targetFileId
+							? api.api.v1.files[':fileId'].versions.$post(
+									{
+										param: { fileId: task.targetFileId },
+										json: { mimeType, sizeBytes: task.sizeBytes },
+									},
+									{ headers },
+								)
+							: api.api.v1.uploads.$post(
+									{
+										json: {
+											fileName: task.fileName,
+											mimeType,
+											sizeBytes: task.sizeBytes,
+											folderId: task.folderId,
+										},
+									},
+									{ headers },
+								),
+					]);
+
+					const intent = await parseApiResponse<UploadIntentPayload>(intentRes);
+
+					await uploadBlobWithXhr(
+						intent.uploadUrl,
+						task.file,
+						intent.requiredHeaders,
+						(loaded) =>
+							updateTask(task.id, {
+								progress:
+									task.sizeBytes > 0
+										? Math.round((loaded / task.sizeBytes) * 100)
+										: 100,
+							}),
+						(xhr) => xhrMapRef.current.set(task.id, xhr),
+					);
+
+					xhrMapRef.current.delete(task.id);
+					updateTask(task.id, { status: 'verifying', progress: 100 });
+
+					const completeRes = await api.api.v1.uploads[
+						':uploadId'
+					].complete.$post(
 						{
-							json: {
-								fileName: task.fileName,
-								mimeType,
-								sizeBytes: task.sizeBytes,
-								folderId: task.folderId,
-							},
+							param: { uploadId: intent.upload.id },
+							json: checksumSha256 ? { checksumSha256 } : {},
 						},
 						{ headers },
-					),
-				]);
-
-				const intent = await parseApiResponse<UploadIntentPayload>(intentRes);
-
-				await uploadWithXhr(
-					intent.uploadUrl,
-					task.file,
-					intent.requiredHeaders,
-					(progress) => updateTask(task.id, { progress }),
-					(xhr) => xhrMapRef.current.set(task.id, xhr),
-				);
-
-				xhrMapRef.current.delete(task.id);
-				updateTask(task.id, { status: 'verifying', progress: 100 });
-
-				const completeRes = await api.api.v1.uploads[
-					':uploadId'
-				].complete.$post(
-					{
-						param: { uploadId: intent.upload.id },
-						json: checksumSha256 ? { checksumSha256 } : {},
-					},
-					{ headers },
-				);
-				await parseApiResponse(completeRes);
+					);
+					completed = await parseApiResponse<UploadCompletePayload>(completeRes);
+				}
 
 				updateTask(task.id, { status: 'completed', progress: 100 });
+				if (completed.isDuplicate) {
+					toast.info(
+						`"${completed.file.name}" matches ${completed.duplicateOf.length} existing duplicate(s) in this vault.`,
+					);
+				}
 				await Promise.all([
 					queryClient.invalidateQueries({ queryKey: ['vault'] }),
 					queryClient.invalidateQueries({ queryKey: AUTH_QUERY_KEY }),
@@ -194,7 +359,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
 				);
 			}
 		},
-		[queryClient, updateTask],
+		[queryClient, runMultipartUpload, updateTask],
 	);
 
 	const enqueueFiles = useCallback(
@@ -210,6 +375,8 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
 				fileName: file.name,
 				sizeBytes: file.size,
 				folderId: options.folderId,
+				targetFileId: null,
+				multipartUploadId: null,
 				tenantId: options.tenantId,
 				status: 'queued',
 				progress: 0,
@@ -221,6 +388,27 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
 			for (const task of newTasks) {
 				void runUpload(task);
 			}
+		},
+		[runUpload],
+	);
+
+	const enqueueVersionUpload = useCallback(
+		(file: File, options: { tenantId: string; fileId: string }) => {
+			const task: UploadTask = {
+				id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+				file,
+				fileName: file.name,
+				sizeBytes: file.size,
+				folderId: null,
+				targetFileId: options.fileId,
+				multipartUploadId: null,
+				tenantId: options.tenantId,
+				status: 'queued',
+				progress: 0,
+				errorMessage: null,
+			};
+			setTasks((prev) => [task, ...prev]);
+			void runUpload(task);
 		},
 		[runUpload],
 	);
@@ -264,6 +452,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
 			value={{
 				tasks,
 				enqueueFiles,
+				enqueueVersionUpload,
 				retryTask,
 				cancelTask,
 				dismissTask,

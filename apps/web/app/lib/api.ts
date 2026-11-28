@@ -133,6 +133,104 @@ export interface UploadIntentPayload {
 	requiredHeaders: Record<string, string>;
 }
 
+export interface UploadCompletePayload {
+	file: FileItem;
+	isDuplicate: boolean;
+	duplicateOf: FileItem[];
+}
+
+export interface FavoriteItem {
+	id: string;
+	targetType: 'FILE' | 'FOLDER';
+	fileId: string | null;
+	folderId: string | null;
+	createdAt: string;
+	file: FileItem | null;
+	folder: FolderItem | null;
+}
+
+export interface FavoritesPayload {
+	items: FavoriteItem[];
+	fileIds: string[];
+	folderIds: string[];
+}
+
+export interface FileShareItem {
+	id: string;
+	fileId: string;
+	hasPassword: boolean;
+	expiresAt: string | null;
+	revokedAt: string | null;
+	downloadCount: number;
+	status: 'ACTIVE' | 'EXPIRED' | 'REVOKED';
+	createdAt: string;
+}
+
+export interface FilePermissionItem {
+	id: string;
+	tenantId: string;
+	fileId: string;
+	userId: string;
+	role: 'VIEWER' | 'EDITOR' | 'OWNER';
+	grantedById: string | null;
+	userName: string | null;
+	userEmail: string | null;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface TenantMemberItem {
+	id: string;
+	tenantId: string;
+	userId: string;
+	role: 'OWNER' | 'ADMIN' | 'MEMBER';
+	name: string | null;
+	email: string | null;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface FileVersionItem {
+	id: string;
+	tenantId: string;
+	fileId: string;
+	versionNumber: number;
+	mimeType: string;
+	sizeBytes: number;
+	checksumSha256: string | null;
+	uploadedById: string;
+	createdAt: string;
+}
+
+export interface DuplicateGroupItem {
+	checksumSha256: string;
+	count: number;
+	totalSizeBytes: number;
+	wastedBytes: number;
+	files: FileItem[];
+}
+
+export interface DuplicatesPayload {
+	groups: DuplicateGroupItem[];
+	totalDuplicateFiles: number;
+	totalWastedBytes: number;
+}
+
+export interface ActivityLogItem {
+	id: string;
+	tenantId: string;
+	actorId: string | null;
+	actorName: string | null;
+	actorEmail: string | null;
+	action: string;
+	targetType: string;
+	fileId: string | null;
+	folderId: string | null;
+	targetName: string | null;
+	metadata: Record<string, unknown> | null;
+	createdAt: string;
+}
+
 export function formatBytes(bytes: number): string {
 	if (bytes === 0) return '0 B';
 	const units = ['B', 'KB', 'MB', 'GB', 'TB'];

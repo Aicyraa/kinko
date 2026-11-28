@@ -1,10 +1,12 @@
-import { FolderInput, Trash2, X } from 'lucide-react';
+import { FolderInput, FolderArchive, Trash2, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Button } from '../ui/button';
 
 interface SelectionBarProps {
 	count: number;
 	onMove: () => void;
+	onDownloadZip: () => void;
+	isZipDownloading?: boolean;
 	onDelete: () => void;
 	onClear: () => void;
 }
@@ -12,6 +14,8 @@ interface SelectionBarProps {
 export function SelectionBar({
 	count,
 	onMove,
+	onDownloadZip,
+	isZipDownloading = false,
 	onDelete,
 	onClear,
 }: SelectionBarProps) {
@@ -32,6 +36,18 @@ export function SelectionBar({
 					</span>
 
 					<div className="h-4 w-px bg-primary-foreground/20" />
+
+					<Button
+						type="button"
+						variant="ghost"
+						size="xs"
+						disabled={isZipDownloading}
+						onClick={onDownloadZip}
+						className="text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground"
+					>
+						<FolderArchive className="size-3.5" aria-hidden="true" />
+						<span>{isZipDownloading ? 'Zipping…' : 'Download ZIP'}</span>
+					</Button>
 
 					<Button
 						type="button"

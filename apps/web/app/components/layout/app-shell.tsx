@@ -3,6 +3,7 @@ import {
 	Check,
 	ChevronsUpDown,
 	FolderOpen,
+	LayoutDashboard,
 	LogOut,
 	Menu,
 	Moon,
@@ -55,6 +56,7 @@ interface AppShellProps {
 }
 
 const NAV_ITEMS = [
+	{ to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
 	{ to: '/files', label: 'Files', icon: FolderOpen },
 	{ to: '/search', label: 'Search', icon: Search },
 	{ to: '/favorites', label: 'Favorites', icon: Star },

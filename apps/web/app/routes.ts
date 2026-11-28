@@ -5,6 +5,7 @@ export default [
 	route('signin', 'routes/signin.tsx'),
 	route('signup', 'routes/signup.tsx'),
 	layout('routes/app-layout.tsx', [
+		route('dashboard', 'routes/dashboard.tsx'),
 		route('files', 'routes/files.tsx'),
 		route('files/:folderId', 'routes/files-folder.tsx'),
 		route('search', 'routes/search.tsx'),

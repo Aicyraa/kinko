@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { deflateSync } from 'node:zlib';
 import { env } from '../src/env.ts';
 import { prisma } from '../src/lib/prisma.ts';
@@ -484,6 +484,110 @@ async function seed() {
 				},
 				update: {},
 			});
+		}
+	}
+
+	// Idempotent Phase 6 seed enrichments for Kinko Studio
+	if (studio) {
+		const briefFile = await prisma.file.findFirst({
+			where: {
+				tenantId: studio.id,
+				name: 'Q4-Product-Architecture-Brief.pdf',
+				deletedAt: null,
+			},
+		});
+		const brandRootFolder = await prisma.folder.findFirst({
+			where: {
+				tenantId: studio.id,
+				name: '01 Brand & Design',
+				deletedAt: null,
+			},
+		});
+
+		if (briefFile) {
+			const existingFavFile = await prisma.favorite.findFirst({
+				where: {
+					tenantId: studio.id,
+					userId: demoUserId,
+					fileId: briefFile.id,
+				},
+			});
+			if (!existingFavFile) {
+				await prisma.favorite.create({
+					data: {
+						tenantId: studio.id,
+						userId: demoUserId,
+						targetType: 'FILE',
+						fileId: briefFile.id,
+						folderId: null,
+					},
+				});
+			}
+
+			const existingShare = await prisma.fileShare.findFirst({
+				where: { tenantId: studio.id, fileId: briefFile.id },
+			});
+			if (!existingShare) {
+				const tokenHash = createHash('sha256')
+					.update(randomBytes(32).toString('base64url'))
+					.digest('hex');
+				await prisma.fileShare.create({
+					data: {
+						tenantId: studio.id,
+						fileId: briefFile.id,
+						createdById: demoUserId,
+						tokenHash,
+						expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+					},
+				});
+			}
+
+			const existingPermCount = await prisma.filePermission.count({
+				where: { tenantId: studio.id, fileId: briefFile.id },
+			});
+			if (existingPermCount === 0) {
+				await prisma.filePermission.create({
+					data: {
+						tenantId: studio.id,
+						fileId: briefFile.id,
+						userId: demoUserId,
+						role: 'OWNER',
+						grantedById: primaryUserId,
+					},
+				});
+				if (primaryUserId !== demoUserId) {
+					await prisma.filePermission.create({
+						data: {
+							tenantId: studio.id,
+							fileId: briefFile.id,
+							userId: primaryUserId,
+							role: 'EDITOR',
+							grantedById: demoUserId,
+						},
+					});
+				}
+			}
+		}
+
+		if (brandRootFolder) {
+			const existingFavFolder = await prisma.favorite.findFirst({
+				where: {
+					tenantId: studio.id,
+					userId: demoUserId,
+					folderId: brandRootFolder.id,
+				},
+			});
+			if (!existingFavFolder) {
+				await prisma.favorite.create({
+					data: {
+						tenantId: studio.id,
+						userId: demoUserId,
+						targetType: 'FOLDER',
+						fileId: null,
+						folderId: brandRootFolder.id,
+					},
+				});
+			}
 		}
 	}
 

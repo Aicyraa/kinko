@@ -3,13 +3,11 @@ import { prisma } from '../../lib/prisma.ts';
 
 export const health = new Hono().get('/', async (c) => {
 	const [date, time] = new Date().toISOString().split('T');
-1
 
 	try {
 		const start = performance.now();
-
 		await prisma.$queryRaw`SELECT 1`;
-		const latency = `${Math.round(performance.now() - start) / 1000}ms`;
+		const latency = `${Math.round(performance.now() - start)}ms`;
 
 		return c.json({ status: 'healthy', latency, date, time, code: 200 });
 	} catch (err) {

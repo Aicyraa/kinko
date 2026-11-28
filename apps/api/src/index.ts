@@ -4,19 +4,23 @@ import { env } from './env.ts';
 import { logger } from './lib/logger.ts';
 import { prisma } from './lib/prisma.ts';
 
-const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
-	logger.info(
-		{ port: info.port },
-		`Server listening on http://localhost:${info.port}`,
-	);
-});
+if (!process.env.VERCEL) {
+	const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
+		logger.info(
+			{ port: info.port },
+			`Server listening on http://localhost:${info.port}`,
+		);
+	});
 
-async function shutdown(signal: string) {
-	logger.info({ signal }, 'shutting down');
-	server.close();
-	await prisma.$disconnect();
-	process.exit(0);
+	async function shutdown(signal: string) {
+		logger.info({ signal }, 'shutting down');
+		server.close();
+		await prisma.$disconnect();
+		process.exit(0);
+	}
+
+	process.on('SIGINT', () => void shutdown('SIGINT'));
+	process.on('SIGTERM', () => void shutdown('SIGTERM'));
 }
 
-process.on('SIGINT', () => void shutdown('SIGINT'));
-process.on('SIGTERM', () => void shutdown('SIGTERM'));
+export default app;

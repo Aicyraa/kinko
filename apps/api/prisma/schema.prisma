@@ -9,7 +9,64 @@ datasource db {
   provider = "postgresql"
 }
 
-// Auth identities live in neon_auth.user. This table stores only app-specific profile data.
+enum TenantRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum UploadStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  ABORTED
+  EXPIRED
+}
+
+enum FilePermissionRole {
+  VIEWER
+  EDITOR
+  OWNER
+}
+
+enum FavoriteTargetType {
+  FILE
+  FOLDER
+}
+
+enum ActivityAction {
+  FILE_UPLOADED
+  FILE_DOWNLOADED
+  FILE_RENAMED
+  FILE_MOVED
+  FILE_DELETED
+  FILE_RESTORED
+  FILE_PERMANENTLY_DELETED
+  FILE_SHARED
+  FILE_SHARE_REVOKED
+  FILE_PERMISSION_UPDATED
+  FILE_VERSION_CREATED
+  FOLDER_CREATED
+  FOLDER_RENAMED
+  FOLDER_MOVED
+  FOLDER_DELETED
+  FOLDER_RESTORED
+  FOLDER_PERMANENTLY_DELETED
+  MEMBER_ADDED
+  MEMBER_ROLE_UPDATED
+  MEMBER_REMOVED
+}
+
+enum ActivityTargetType {
+  FILE
+  FOLDER
+  TENANT
+  SHARE
+  MEMBER
+}
+
+// Auth identities live in neon_auth.user. This table stores only app-specific profile data
+// keyed 1:1 by neon_auth.user.id.
 model UserProfile {
   id                 String   @id @db.Uuid
   onboardingComplete Boolean  @default(false)
@@ -17,26 +74,46 @@ model UserProfile {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
+  defaultTenant      Tenant?          @relation("UserDefaultTenant", fields: [defaultTenantId], references: [id], onDelete: SetNull)
+  ownedTenants       Tenant[]         @relation("TenantOwner")
+  memberships        TenantMember[]
+  createdFolders     Folder[]         @relation("FolderCreator")
+  uploadedFiles      File[]           @relation("FileUploader")
+  uploadedVersions   FileVersion[]    @relation("FileVersionUploader")
+  uploads            Upload[]         @relation("UploadInitiator")
+  favorites          Favorite[]
+  createdShares      FileShare[]      @relation("FileShareCreator")
+  filePermissions    FilePermission[] @relation("FilePermissionRecipient")
+  grantedPermissions FilePermission[] @relation("FilePermissionGranter")
+  activities         Activity[]       @relation("ActivityActor")
+
+  @@index([defaultTenantId])
   @@map("user_profiles")
 }
 
-enum TenantRole {
-  OWNER
-  ADMIN
-  MEMBER
-}
-
 model Tenant {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String
-  ownerId   String?  @db.Uuid
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                String   @id @default(uuid()) @db.Uuid
+  name              String
+  ownerId           String?  @db.Uuid
+  storageQuotaBytes BigInt   @default(1073741824)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  members TenantMember[]
-  folders Folder[]
-  files   File[]
+  owner            UserProfile?           @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  defaultForUsers  UserProfile[]          @relation("UserDefaultTenant")
+  members          TenantMember[]
+  folders          Folder[]
+  files            File[]
+  fileVersions     FileVersion[]
+  uploads          Upload[]
+  favorites        Favorite[]
+  fileShares       FileShare[]
+  filePermissions  FilePermission[]
+  activities       Activity[]
+  analytics        TenantAnalytics?
+  storageSnapshots StorageUsageSnapshot[]
 
+  @@index([ownerId])
   @@map("tenants")
 }
 
@@ -46,8 +123,10 @@ model TenantMember {
   userId    String     @db.Uuid
   role      TenantRole @default(MEMBER)
   createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, userId])
   @@index([userId])
@@ -64,27 +143,247 @@ model Folder {
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parentFolder Folder?     @relation("FolderHierarchy", fields: [parentFolderId], references: [id], onDelete: Cascade)
+  children     Folder[]    @relation("FolderHierarchy")
+  createdBy    UserProfile @relation("FolderCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  files        File[]
+  uploads      Upload[]
+  favorites    Favorite[]
+  activities   Activity[]
 
   @@index([tenantId, parentFolderId])
+  @@index([tenantId, deletedAt])
+  @@index([createdById])
   @@map("folders")
 }
 
 model File {
-  id           String    @id @default(uuid()) @db.Uuid
-  tenantId     String    @db.Uuid
-  folderId     String?   @db.Uuid
-  uploadedById String    @db.Uuid
-  name         String
-  objectKey    String    @unique
-  mimeType     String
-  sizeBytes    BigInt
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @db.Uuid
+  folderId       String?   @db.Uuid
+  uploadedById   String    @db.Uuid
+  name           String
+  objectKey      String    @unique
+  mimeType       String
+  sizeBytes      BigInt
+  checksumSha256 String?
+  currentVersion Int       @default(1)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  folder      Folder?          @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  uploadedBy  UserProfile      @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  versions    FileVersion[]
+  uploads     Upload[]
+  shares      FileShare[]
+  permissions FilePermission[]
+  favorites   Favorite[]
+  activities  Activity[]
+
+  @@index([tenantId, folderId])
+  @@index([tenantId, deletedAt])
+  @@index([tenantId, checksumSha256])
+  @@index([tenantId, mimeType])
+  @@index([tenantId, createdAt])
+  @@index([uploadedById])
+  @@map("files")
+}
+
+model FileVersion {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  fileId         String   @db.Uuid
+  versionNumber  Int
+  objectKey      String   @unique
+  mimeType       String
+  sizeBytes      BigInt
+  checksumSha256 String?
+  uploadedById   String   @db.Uuid
+  createdAt      DateTime @default(now())
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  file       File        @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  uploadedBy UserProfile @relation("FileVersionUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@unique([fileId, versionNumber])
+  @@index([tenantId, fileId])
+  @@index([uploadedById])
+  @@map("file_versions")
+}
+
+model Upload {
+  id                String       @id @default(uuid()) @db.Uuid
+  tenantId          String       @db.Uuid
+  folderId          String?      @db.Uuid
+  fileId            String?      @db.Uuid
+  uploadedById      String       @db.Uuid
+  fileName          String
+  mimeType          String
+  declaredSizeBytes BigInt
+  objectKey         String       @unique
+  status            UploadStatus @default(PENDING)
+  isMultipart       Boolean      @default(false)
+  s3UploadId        String?
+  partSizeBytes     Int?
+  totalParts        Int?
+  expiresAt         DateTime
+  completedAt       DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  tenant     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  folder     Folder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  file       File?        @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  uploadedBy UserProfile  @relation("UploadInitiator", fields: [uploadedById], references: [id], onDelete: Restrict)
+  parts      UploadPart[]
+
+  @@index([tenantId, status])
+  @@index([status, expiresAt])
+  @@index([uploadedById])
+  @@index([fileId])
+  @@map("uploads")
+}
+
+model UploadPart {
+  id         String   @id @default(uuid()) @db.Uuid
+  uploadId   String   @db.Uuid
+  partNumber Int
+  eTag       String
+  sizeBytes  BigInt
+  createdAt  DateTime @default(now())
+
+  upload Upload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+
+  @@unique([uploadId, partNumber])
+  @@map("upload_parts")
+}
+
+model FileShare {
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String    @db.Uuid
+  fileId        String    @db.Uuid
+  createdById   String?   @db.Uuid
+  tokenHash     String    @unique
+  passwordHash  String?
+  expiresAt     DateTime?
+  revokedAt     DateTime?
+  downloadCount Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  tenant    Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  file      File         @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  createdBy UserProfile? @relation("FileShareCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, fileId])
+  @@index([expiresAt])
+  @@index([createdById])
+  @@map("file_shares")
+}
+
+model FilePermission {
+  id          String             @id @default(uuid()) @db.Uuid
+  tenantId    String             @db.Uuid
+  fileId      String             @db.Uuid
+  userId      String             @db.Uuid
+  role        FilePermissionRole @default(VIEWER)
+  grantedById String?            @db.Uuid
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  tenant    Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  file      File         @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  user      UserProfile  @relation("FilePermissionRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy UserProfile? @relation("FilePermissionGranter", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([fileId, userId])
+  @@index([tenantId, userId])
+  @@index([grantedById])
+  @@map("file_permissions")
+}
+
+// Note: Prisma does not support CHECK constraints natively. In your migration SQL,
+// add an XOR CHECK constraint so each row targets either a file or a folder:
+//   ALTER TABLE "favorites" ADD CONSTRAINT "favorites_target_xor_check" CHECK (
+//     ("targetType" = 'FILE' AND "fileId" IS NOT NULL AND "folderId" IS NULL) OR
+//     ("targetType" = 'FOLDER' AND "folderId" IS NOT NULL AND "fileId" IS NULL)
+//   );
+model Favorite {
+  id         String             @id @default(uuid()) @db.Uuid
+  tenantId   String             @db.Uuid
+  userId     String             @db.Uuid
+  targetType FavoriteTargetType
+  fileId     String?            @db.Uuid
+  folderId   String?            @db.Uuid
+  createdAt  DateTime           @default(now())
+
+  tenant Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  file   File?       @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  folder Folder?     @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, fileId])
+  @@unique([tenantId, userId, folderId])
+  @@index([tenantId, userId, createdAt])
+  @@map("favorites")
+}
+
+model Activity {
+  id         String             @id @default(uuid()) @db.Uuid
+  tenantId   String             @db.Uuid
+  actorId    String?            @db.Uuid
+  action     ActivityAction
+  targetType ActivityTargetType
+  fileId     String?            @db.Uuid
+  folderId   String?            @db.Uuid
+  targetName String?
+  metadata   Json?
+  createdAt  DateTime           @default(now())
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actor  UserProfile? @relation("ActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
+  file   File?        @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  folder Folder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([tenantId, action, createdAt])
+  @@index([actorId])
+  @@index([fileId])
+  @@index([folderId])
+  @@map("activities")
+}
+
+model TenantAnalytics {
+  tenantId         String   @id @db.Uuid
+  storageUsedBytes BigInt   @default(0)
+  totalFiles       Int      @default(0)
+  totalFolders     Int      @default(0)
+  totalUploads     BigInt   @default(0)
+  totalDownloads   BigInt   @default(0)
+  updatedAt        DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@index([tenantId, folderId])
-  @@map("files")
+  @@map("tenant_analytics")
+}
+
+model StorageUsageSnapshot {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  snapshotDate     DateTime @db.Date
+  storageUsedBytes BigInt
+  fileCount        Int      @default(0)
+  folderCount      Int      @default(0)
+  uploadCount      Int      @default(0)
+  downloadCount    Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, snapshotDate])
+  @@index([tenantId, snapshotDate(sort: Desc)])
+  @@map("storage_usage_snapshots")
 }

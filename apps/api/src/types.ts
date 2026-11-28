@@ -1,3 +1,5 @@
+import type { Tenant, TenantMember, UserProfile } from './generated/prisma/client.js';
+
 export type SuccessStatusCode = 200 | 201 | 202;
 
 export type RedirectStatusCode = 301 | 302 | 303 | 307 | 308;
@@ -18,3 +20,32 @@ export interface ApiResponse<C = unknown, T = unknown> {
 	error?: T;
 	payload?: T;
 }
+
+export interface AuthUser {
+	id: string;
+	email: string;
+	name: string;
+	image?: string | null;
+	emailVerified?: boolean;
+	createdAt?: Date | string;
+	updatedAt?: Date | string;
+}
+
+export interface AuthSession {
+	id: string;
+	userId: string;
+	expiresAt: Date | string;
+	token?: string;
+}
+
+export interface AppVariables {
+	user: AuthUser;
+	session: AuthSession;
+	userProfile: UserProfile;
+	tenant: Tenant;
+	tenantMembership: TenantMember;
+}
+
+export type AppEnv = {
+	Variables: AppVariables;
+};

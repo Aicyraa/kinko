@@ -1,60 +1,146 @@
-import { createFactory } from 'hono/factory'
-import { serverAuth } from '../../lib/serverAuth.ts'
-import { errorResponse, successResponse } from '../../utils/response.ts'
-import { handleAuthProxyRequest } from '@neon/auth/server'
-import { env } from '../../env.ts'
-import type { SignInType, SignUpType } from './auth.schema.ts'
+import { handleAuthProxyRequest } from '@neon/auth/server';
+import { createFactory } from 'hono/factory';
+import { env } from '../../env.ts';
+import { serverAuth } from '../../lib/serverAuth.ts';
+import type { AppEnv } from '../../types.ts';
+import { errorResponse, successResponse } from '../../utils/response.ts';
+import { validate } from '../../utils/validate.ts';
+import {
+	ensureUserOnboarded,
+	serializeOnboardedState,
+} from '../tenant/tenant.service.ts';
+import { SignInSchema, SignUpSchema } from './auth.schema.ts';
 
-const factory = createFactory()
+const factory = createFactory<AppEnv>();
 
-export const checkSession = factory.createHandlers(async c => {
-	const { data } = await serverAuth.getSession()
+export const checkSession = factory.createHandlers(async (c) => {
+	const { data } = await serverAuth.getSession();
 
-	if (!data?.session) {
-		return errorResponse(c, 'Not Authenticated', 401)
+	if (!data?.session || !data.user) {
+		return errorResponse(c, 'Not authenticated', {}, 401);
 	}
 
-	return successResponse<typeof data.user>(c, 'Authenticated', data.user, 200)
-})
+	const onboarded = await ensureUserOnboarded({
+		id: data.user.id,
+		name: data.user.name,
+		email: data.user.email,
+	});
+	const { profile, tenants } = serializeOnboardedState(onboarded);
 
-export const signup = factory.createHandlers(async c => {
-	const validated = c.req.valid('form') as SignUpType
+	return successResponse(
+		c,
+		'Authenticated',
+		{
+			user: data.user,
+			profile,
+			defaultTenantId: profile.defaultTenantId,
+			tenants,
+		},
+		200,
+	);
+});
 
-    const { data, error } = await serverAuth.signUp.email({
-		email: validated.email,
-		password: validated.password,
-		name: validated.name,
-		callbackURL: `${env.CLIENT_BASE_URL}/`
-	})
+export const signup = factory.createHandlers(
+	validate('json', SignUpSchema),
+	async (c) => {
+		const validated = c.req.valid('json');
 
-    if (error) {
-        return errorResponse<string>(c, error.message as string, error.message, 422)
-    }
-    
-    return successResponse<typeof data.user>(c, 'user created', data.user, 201)
-})
+		const { data, error } = await serverAuth.signUp.email({
+			email: validated.email,
+			password: validated.password,
+			name: validated.name,
+			callbackURL: `${env.CLIENT_BASE_URL}/`,
+		});
 
-export const signin = factory.createHandlers(async c => {
-    const validated = c.req.valid('form') as SignInType ;
-    
-    const { data, error } = await serverAuth.signIn.email({
-        email: validated.email,
-        password: validated.password,
-    });
-    
-    if (error) {
-        return errorResponse(c, error.message as string, 422, )
-    }
+		if (error) {
+			return errorResponse(
+				c,
+				error.message ?? error.statusText ?? 'Sign up failed',
+				{ reason: error.message ?? error.statusText },
+				422,
+			);
+		}
 
-    return successResponse<typeof data.user>(c, 'successfully logged in', 200, data.user)
-})
+		if (data?.user) {
+			const onboarded = await ensureUserOnboarded({
+				id: data.user.id,
+				name: data.user.name,
+				email: data.user.email,
+			});
+			const { profile, tenants } = serializeOnboardedState(onboarded);
+			return successResponse(
+				c,
+				'User created',
+				{
+					user: data.user,
+					profile,
+					defaultTenantId: profile.defaultTenantId,
+					tenants,
+				},
+				201,
+			);
+		}
 
-export const neonHandler = factory.createHandlers(async c => {
-	const path = c.req.path.replace(/^\/api\/v1\/auth\/?/, '')
+		return successResponse(c, 'User created', { user: null }, 201);
+	},
+);
+
+export const signin = factory.createHandlers(
+	validate('json', SignInSchema),
+	async (c) => {
+		const validated = c.req.valid('json');
+
+		const { data, error } = await serverAuth.signIn.email({
+			email: validated.email,
+			password: validated.password,
+		});
+
+		if (error || !data?.user) {
+			return errorResponse(
+				c,
+				error?.message ?? error?.statusText ?? 'Invalid email or password',
+				{},
+				401,
+			);
+		}
+
+		const onboarded = await ensureUserOnboarded({
+			id: data.user.id,
+			name: data.user.name,
+			email: data.user.email,
+		});
+		const { profile, tenants } = serializeOnboardedState(onboarded);
+
+		return successResponse(
+			c,
+			'Successfully logged in',
+			{
+				user: data.user,
+				profile,
+				defaultTenantId: profile.defaultTenantId,
+				tenants,
+			},
+			200,
+		);
+	},
+);
+
+export const signout = factory.createHandlers(async (c) => {
+	const { error } = await serverAuth.signOut();
+
+	if (error) {
+		return errorResponse(c, error.message ?? 'Sign out failed', {}, 500);
+	}
+
+	return successResponse(c, 'Successfully signed out', {}, 200);
+});
+
+export const neonHandler = factory.createHandlers(async (c) => {
+	const path = c.req.path.replace(/^\/api\/v1\/auth\/?/, '');
 	return handleAuthProxyRequest({
 		request: c.req.raw,
 		path,
 		baseUrl: env.NEON_AUTH_URL,
-		cookieSecret: env.NEON_AUTH_COOKIE_SECRET
-	})
-})
+		cookieSecret: env.NEON_AUTH_COOKIE_SECRET,
+	});
+});

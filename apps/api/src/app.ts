@@ -1,23 +1,39 @@
 import { Hono } from 'hono';
 import { contextStorage } from 'hono/context-storage';
-import { secureHeaders } from 'hono/secure-headers';
 import { cors } from 'hono/cors';
+import { secureHeaders } from 'hono/secure-headers';
 import { env } from './env.ts';
+import { auth } from './features/auth/auth.route.ts';
+import { health } from './features/health/health.route.ts';
+import { tenant } from './features/tenant/tenant.route.ts';
 import { errorHandler } from './middleware/errorHandler.ts';
 import { requestLogger } from './middleware/logger.ts';
 import { notFound } from './middleware/notFound.ts';
-import { auth } from './features/auth/auth.route.ts';
-import { health } from './features/health/health.route.ts';
+import type { AppEnv } from './types.ts';
 
+export const app = new Hono<AppEnv>().basePath('/api/v1');
 
-export const app = new Hono().basePath('/api/v1');
+const allowedOrigins = new Set<string>([env.CLIENT_BASE_URL]);
+if (process.env.VERCEL_URL) {
+	allowedOrigins.add(`https://${process.env.VERCEL_URL}`);
+}
+if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+	allowedOrigins.add(`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`);
+}
 
 app.use(
 	'*',
 	cors({
-		origin: env.CLIENT_BASE_URL,
-		allowHeaders: ['X-Custom-Header', 'Upgrade-Insecure-Requests'],
-		exposeHeaders: ['Content-Length', 'X-Kuma-Revision'],
+		origin: (origin) => (allowedOrigins.has(origin) ? origin : ''),
+		allowHeaders: [
+			'Content-Type',
+			'Authorization',
+			'X-Tenant-Id',
+			'X-Custom-Header',
+			'Upgrade-Insecure-Requests',
+		],
+		allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+		exposeHeaders: ['Content-Length', 'Content-Disposition'],
 		maxAge: 600,
 		credentials: true,
 	}),
@@ -29,6 +45,10 @@ app.use('*', requestLogger);
 app.onError(errorHandler);
 app.notFound(notFound);
 
-const routes = app.route('/health', health).route('/auth', auth);
+const routes = app
+	.route('/health', health)
+	.route('/auth', auth)
+	.route('/tenants', tenant);
 
 export type AppType = typeof routes;
+export default app;

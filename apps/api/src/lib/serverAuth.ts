@@ -12,7 +12,7 @@ export const serverAuth = createAuthServer({
 	context: () => {
 		const c = getContext();
 		return {
-			getCookies: () => extractNeonAuthCookies(c.header('cookie') ?? ''),
+			getCookies: () => extractNeonAuthCookies(c.req.header('cookie') ?? ''),
 			setCookie: (name, value, options) =>
 				c.header(
 					'Set-Cookie',

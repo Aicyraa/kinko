@@ -1,12 +1,6 @@
 import type { NotFoundHandler } from 'hono';
+import { errorResponse } from '../utils/response.ts';
 
 export const notFound: NotFoundHandler = (c) => {
-	return c.json(
-		{
-			status: 'not found',
-			code: 404,
-			path: c.req.path,
-		},
-		404,
-	);
+	return errorResponse(c, 'Not found', { path: c.req.path }, 404);
 };

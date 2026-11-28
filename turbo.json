@@ -4,7 +4,23 @@
 		"build": {
 			"dependsOn": ["^build"],
 			"outputs": ["dist/**", "build/**"],
-			"env": ["NODE_ENV", "DATABASE_URL", "DIRECT_URL"]
+			"env": ["NODE_ENV", "DATABASE_URL", "DIRECT_URL"],
+			"passThroughEnv": [
+				"NEON_AUTH_URL",
+				"NEON_AUTH_COOKIE_SECRET",
+				"AWS_ENDPOINT_URL_S3",
+				"AWS_ACCESS_KEY_ID",
+				"AWS_SECRET_ACCESS_KEY",
+				"AWS_REGION",
+				"STORAGE_BUCKET_UPLOADS",
+				"STORAGE_BUCKET_TRASH",
+				"FILE_SIZE",
+				"MAX_FILE_SIZE_BYTES",
+				"TRASH_RETENTION_DAYS",
+				"CLIENT_BASE_URL",
+				"LOG_LEVEL",
+				"ERROR_MONITORING_WEBHOOK_URL"
+			]
 		},
 		"check-types": {
 			"dependsOn": ["^check-types"]

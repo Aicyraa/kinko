@@ -35,13 +35,24 @@ export class ApiError extends Error {
 }
 
 export async function parseApiResponse<T>(res: Response): Promise<T> {
-	const data = (await res.json()) as ApiEnvelope<T>;
-	if (!res.ok || !data.success) {
-		const firstIssue = data.error?.issues?.[0]?.message;
+	const rawText = await res.text();
+	let data: ApiEnvelope<T> | null = null;
+	if (rawText) {
+		try {
+			data = JSON.parse(rawText) as ApiEnvelope<T>;
+		} catch {
+			throw new ApiError(
+				`Server error (${res.status})`,
+				res.status || 500,
+			);
+		}
+	}
+	if (!res.ok || !data?.success) {
+		const firstIssue = data?.error?.issues?.[0]?.message;
 		throw new ApiError(
-			firstIssue ?? data.message ?? 'Request failed',
-			data.code ?? res.status,
-			data.error?.issues,
+			firstIssue ?? data?.message ?? `Request failed (${res.status})`,
+			data?.code ?? res.status,
+			data?.error?.issues,
 		);
 	}
 	return data.payload as T;

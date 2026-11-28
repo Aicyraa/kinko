@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
 
 /* ------------------------------------------------------------------ *
@@ -108,7 +109,14 @@ const authSchema = z.object({
 });
 
 const clientSchema = z.object({
-	CLIENT_BASE_URL: z.url(),
+	CLIENT_BASE_URL: z
+		.url()
+		.default(
+			process.env.VERCEL_URL
+				? `https://${process.env.VERCEL_URL}`
+				: 'http://localhost:5173',
+		),
+	ERROR_MONITORING_WEBHOOK_URL: z.url().optional(),
 });
 /* ------------------------------------------------------------------ *
  * Combine, validate, export
@@ -144,4 +152,13 @@ export type Env = z.infer<typeof envSchema>;
 
 export function getMaxFileSizeBytes(): number {
 	return env.MAX_FILE_SIZE_BYTES ?? env.FILE_SIZE;
+}
+
+export function assertWithinMaxFileSize(sizeBytes: number): void {
+	const maxFileSize = getMaxFileSizeBytes();
+	if (sizeBytes > maxFileSize) {
+		throw new HTTPException(413, {
+			message: `File exceeds maximum allowed size of ${maxFileSize} bytes`,
+		});
+	}
 }

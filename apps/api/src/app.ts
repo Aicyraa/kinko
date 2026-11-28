@@ -20,6 +20,8 @@ import { uploads } from './features/uploads/uploads.route.ts';
 import { errorHandler } from './middleware/errorHandler.ts';
 import { requestLogger } from './middleware/logger.ts';
 import { notFound } from './middleware/notFound.ts';
+import { createRateLimiter } from './middleware/rateLimit.ts';
+import { enforceBodyLimit } from './middleware/requestLimits.ts';
 import type { AppEnv } from './types.ts';
 
 export const app = new Hono<AppEnv>().basePath('/api/v1');
@@ -52,6 +54,35 @@ app.use(
 app.use('*', secureHeaders());
 app.use('*', contextStorage());
 app.use('*', requestLogger);
+app.use('*', enforceBodyLimit(1024 * 1024));
+
+const authLimiter = createRateLimiter({
+	windowMs: 60_000,
+	maxRequests: 30,
+	keyPrefix: 'auth',
+});
+const publicShareLimiter = createRateLimiter({
+	windowMs: 60_000,
+	maxRequests: 40,
+	keyPrefix: 'public-share',
+});
+const uploadLimiter = createRateLimiter({
+	windowMs: 60_000,
+	maxRequests: 60,
+	keyPrefix: 'uploads',
+});
+const zipLimiter = createRateLimiter({
+	windowMs: 60_000,
+	maxRequests: 20,
+	keyPrefix: 'zip-download',
+});
+
+app.use('/auth/signin', authLimiter);
+app.use('/auth/signup', authLimiter);
+app.use('/shares/public/*', publicShareLimiter);
+app.use('/uploads', uploadLimiter);
+app.use('/uploads/*', uploadLimiter);
+app.use('/downloads/zip', zipLimiter);
 
 app.onError(errorHandler);
 app.notFound(notFound);

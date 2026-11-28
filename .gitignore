@@ -1,5 +1,6 @@
 node_modules
 .turbo
 .agents
+.vercel
 test-results
 playwright-report

@@ -62,3 +62,94 @@ export function setStoredTenantId(tenantId: string | null): void {
 	}
 	window.localStorage.setItem(ACTIVE_TENANT_STORAGE_KEY, tenantId);
 }
+
+export function tenantHeaders(
+	tenantId?: string | null,
+): Record<string, string> {
+	if (!tenantId) return {};
+	return { 'X-Tenant-Id': tenantId };
+}
+
+export interface FolderItem {
+	id: string;
+	tenantId: string;
+	parentFolderId: string | null;
+	name: string;
+	createdById: string;
+	createdAt: string;
+	updatedAt: string;
+	deletedAt: string | null;
+}
+
+export interface FileItem {
+	id: string;
+	tenantId: string;
+	folderId: string | null;
+	uploadedById: string;
+	name: string;
+	mimeType: string;
+	sizeBytes: number;
+	checksumSha256: string | null;
+	currentVersion: number;
+	createdAt: string;
+	updatedAt: string;
+	deletedAt: string | null;
+}
+
+export interface BreadcrumbItem {
+	id: string;
+	name: string;
+}
+
+export interface FolderDetailsPayload {
+	folder: FolderItem;
+	breadcrumbs: BreadcrumbItem[];
+	children: FolderItem[];
+	files: FileItem[];
+}
+
+export interface FilesListPayload {
+	items: FileItem[];
+	pagination: {
+		page: number;
+		limit: number;
+		total: number;
+		totalPages: number;
+	};
+}
+
+export interface UploadIntentPayload {
+	upload: {
+		id: string;
+		tenantId: string;
+		folderId: string | null;
+		fileName: string;
+		mimeType: string;
+		declaredSizeBytes: number;
+		status: string;
+	};
+	uploadUrl: string;
+	expiresInSeconds: number;
+	requiredHeaders: Record<string, string>;
+}
+
+export function formatBytes(bytes: number): string {
+	if (bytes === 0) return '0 B';
+	const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+	const i = Math.min(
+		Math.floor(Math.log(bytes) / Math.log(1024)),
+		units.length - 1,
+	);
+	const value = bytes / 1024 ** i;
+	return `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(value)} ${units[i]}`;
+}
+
+export function formatDate(iso: string): string {
+	const date = new Date(iso);
+	if (Number.isNaN(date.getTime())) return '—';
+	return new Intl.DateTimeFormat('en-US', {
+		month: 'short',
+		day: 'numeric',
+		year: 'numeric',
+	}).format(date);
+}

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test.describe('Kinko Auth & Workspace Onboarding (#16, #19)', () => {
+test.describe('Kinko Auth & Workspace Onboarding (#16, #19, #33)', () => {
 	test('renders White/Carbon sign-in UI, handles invalid login, signs up, persists session across reload, creates workspace, and signs out', async ({
 		page,
 	}) => {
@@ -17,6 +17,7 @@ test.describe('Kinko Auth & Workspace Onboarding (#16, #19)', () => {
 		});
 
 		await page.goto('/');
+		await page.waitForLoadState('networkidle');
 		await expect(
 			page.getByRole('heading', { name: 'Welcome back' }),
 		).toBeVisible({ timeout: 15_000 });
@@ -41,28 +42,26 @@ test.describe('Kinko Auth & Workspace Onboarding (#16, #19)', () => {
 		await page.getByLabel('Confirm Password').fill('KinkoVault#2026');
 		await page.getByRole('button', { name: 'Create Account' }).click();
 
-		// Should land on Your Workspaces with default tenant provisioned
+		// Should land on /files with default tenant provisioned in the sidebar
+		await expect(page).toHaveURL(/\/files/, { timeout: 15_000 });
 		await expect(
-			page.getByRole('heading', { name: 'Your Workspaces' }),
+			page.getByRole('heading', { name: "E2E Vault User's Vault" }),
 		).toBeVisible({ timeout: 15_000 });
-		await expect(page.getByText("E2E Vault User's Vault")).toBeVisible();
 
-		// Create a second workspace
-		await page.getByRole('button', { name: 'New Workspace' }).click();
+		// Create a second workspace via sidebar workspace switcher
+		await page.getByRole('button', { name: 'Switch workspace' }).click();
+		await page.getByRole('menuitem', { name: 'New Workspace' }).click();
 		await page.getByLabel('Workspace Name').fill('Studio Archive');
 		await page.getByRole('button', { name: 'Create Workspace' }).click();
 		await expect(
 			page.getByRole('heading', { name: 'Studio Archive' }),
-		).toBeVisible();
+		).toBeVisible({ timeout: 10_000 });
 
 		// Reload and confirm session survives
 		await page.reload();
 		await expect(
-			page.getByRole('heading', { name: 'Your Workspaces' }),
-		).toBeVisible({ timeout: 15_000 });
-		await expect(
 			page.getByRole('heading', { name: 'Studio Archive' }),
-		).toBeVisible();
+		).toBeVisible({ timeout: 15_000 });
 
 		// Sign out and confirm reload stays unauthenticated
 		await page.getByRole('button', { name: 'Sign Out' }).click();
@@ -72,10 +71,9 @@ test.describe('Kinko Auth & Workspace Onboarding (#16, #19)', () => {
 		await page.reload();
 		await expect(
 			page.getByRole('heading', { name: 'Welcome back' }),
-		).toBeVisible();
+		).toBeVisible({ timeout: 15_000 });
 
 		expect(pageErrors).toEqual([]);
-		// Filter out expected 401/422 network console noise from the invalid sign-in test
 		const unexpectedErrors = consoleErrors.filter(
 			(msg) => !msg.includes('401') && !msg.includes('status of 401'),
 		);

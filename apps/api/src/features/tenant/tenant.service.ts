@@ -261,12 +261,32 @@ export async function listTenantMembers(tenantId: string) {
 		orderBy: { createdAt: 'asc' },
 	});
 
-	return members.map((m) => ({
-		id: m.id,
-		tenantId: m.tenantId,
-		userId: m.userId,
-		role: m.role,
-		createdAt: m.createdAt.toISOString(),
-		updatedAt: m.updatedAt.toISOString(),
-	}));
+	const userIds = members.map((m) => m.userId);
+	const userMap = new Map<string, { name: string | null; email: string | null }>();
+	if (userIds.length > 0) {
+		const users = await prisma.$queryRaw<
+			Array<{ id: string; name: string | null; email: string | null }>
+		>`
+			SELECT id::text, name, email
+			FROM neon_auth."user"
+			WHERE id::text = ANY(${userIds}::text[])
+		`;
+		for (const u of users) {
+			userMap.set(u.id, { name: u.name, email: u.email });
+		}
+	}
+
+	return members.map((m) => {
+		const info = userMap.get(m.userId);
+		return {
+			id: m.id,
+			tenantId: m.tenantId,
+			userId: m.userId,
+			role: m.role,
+			name: info?.name ?? null,
+			email: info?.email ?? null,
+			createdAt: m.createdAt.toISOString(),
+			updatedAt: m.updatedAt.toISOString(),
+		};
+	});
 }

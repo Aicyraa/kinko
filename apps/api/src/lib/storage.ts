@@ -1,10 +1,14 @@
 import { randomBytes } from 'node:crypto';
 import {
+	AbortMultipartUploadCommand,
+	CompleteMultipartUploadCommand,
+	CreateMultipartUploadCommand,
 	DeleteObjectCommand,
 	GetObjectCommand,
 	HeadObjectCommand,
 	PutObjectCommand,
 	S3Client,
+	UploadPartCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { env } from '../env.ts';
@@ -142,4 +146,77 @@ export async function deleteStorageObject(
 	bucket = env.STORAGE_BUCKET_UPLOADS,
 ): Promise<void> {
 	await storage.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+}
+
+export async function createS3MultipartUpload(params: {
+	key: string;
+	contentType: string;
+	bucket?: string;
+}): Promise<string> {
+	const res = await storage.send(
+		new CreateMultipartUploadCommand({
+			Bucket: params.bucket ?? env.STORAGE_BUCKET_UPLOADS,
+			Key: params.key,
+			ContentType: params.contentType,
+		}),
+	);
+	if (!res.UploadId) {
+		throw new Error('Storage provider did not return an UploadId');
+	}
+	return res.UploadId;
+}
+
+export async function createPresignedPartUploadUrl(params: {
+	key: string;
+	uploadId: string;
+	partNumber: number;
+	expiresInSeconds?: number;
+	bucket?: string;
+}): Promise<string> {
+	const command = new UploadPartCommand({
+		Bucket: params.bucket ?? env.STORAGE_BUCKET_UPLOADS,
+		Key: params.key,
+		UploadId: params.uploadId,
+		PartNumber: params.partNumber,
+	});
+	return getSignedUrl(storage, command, {
+		expiresIn: params.expiresInSeconds ?? 300,
+	});
+}
+
+export async function completeS3MultipartUpload(params: {
+	key: string;
+	uploadId: string;
+	parts: Array<{ partNumber: number; eTag: string }>;
+	bucket?: string;
+}): Promise<void> {
+	const sorted = [...params.parts]
+		.sort((a, b) => a.partNumber - b.partNumber)
+		.map((part) => ({
+			PartNumber: part.partNumber,
+			ETag: part.eTag,
+		}));
+
+	await storage.send(
+		new CompleteMultipartUploadCommand({
+			Bucket: params.bucket ?? env.STORAGE_BUCKET_UPLOADS,
+			Key: params.key,
+			UploadId: params.uploadId,
+			MultipartUpload: { Parts: sorted },
+		}),
+	);
+}
+
+export async function abortS3MultipartUpload(params: {
+	key: string;
+	uploadId: string;
+	bucket?: string;
+}): Promise<void> {
+	await storage.send(
+		new AbortMultipartUploadCommand({
+			Bucket: params.bucket ?? env.STORAGE_BUCKET_UPLOADS,
+			Key: params.key,
+			UploadId: params.uploadId,
+		}),
+	);
 }

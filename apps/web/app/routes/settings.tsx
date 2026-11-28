@@ -1,5 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, FolderLock, Plus, Shield } from 'lucide-react';
+import {
+	Activity,
+	Check,
+	ChevronLeft,
+	ChevronRight,
+	FolderLock,
+	Plus,
+	Shield,
+} from 'lucide-react';
 import { motion } from 'motion/react';
 import { type FormEvent, useId, useState } from 'react';
 import { toast } from 'sonner';
@@ -18,12 +26,29 @@ import {
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '../components/ui/select';
+import {
+	type ActivityActionFilter,
+	useAuditActivities,
+} from '../hooks/use-advanced';
+import {
 	AUTH_QUERY_KEY,
 	useCreateTenant,
 	useSession,
 	useSetDefaultTenant,
 } from '../hooks/use-auth';
-import { ApiError, api, formatBytes, parseApiResponse } from '../lib/api';
+import {
+	ApiError,
+	api,
+	formatBytes,
+	formatDate,
+	parseApiResponse,
+} from '../lib/api';
 import type { Route } from './+types/settings';
 
 export function meta(_: Route.MetaArgs) {
@@ -40,13 +65,20 @@ export default function SettingsPage() {
 	const [newName, setNewName] = useState('');
 	const [renameValue, setRenameValue] = useState('');
 	const [renaming, setRenaming] = useState(false);
+	const [auditAction, setAuditAction] = useState<ActivityActionFilter>('ALL');
+	const [auditPage, setAuditPage] = useState(1);
 
 	const newNameId = useId();
 	const renameId = useId();
 
-	if (!session) return null;
+	const activeTenant = session ? getActiveTenant(session) : undefined;
+	const auditQuery = useAuditActivities(activeTenant?.id, {
+		page: auditPage,
+		limit: 10,
+		action: auditAction,
+	});
 
-	const activeTenant = getActiveTenant(session);
+	if (!session) return null;
 
 	async function handleCreate(e: FormEvent<HTMLFormElement>) {
 		e.preventDefault();
@@ -259,6 +291,123 @@ export default function SettingsPage() {
 					})}
 				</div>
 			</section>
+
+			{activeTenant && (
+				<section className="rounded-xl border border-border bg-card p-6 space-y-4">
+					<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+						<div>
+							<h2 className="text-base font-semibold tracking-tight flex items-center gap-2">
+								<Activity className="size-4" aria-hidden="true" />
+								<span>Workspace Audit Log</span>
+							</h2>
+							<p className="text-xs text-muted-foreground mt-0.5">
+								Security-relevant uploads, downloads, shares, permission
+								changes, and deletions for {activeTenant.name}.
+							</p>
+						</div>
+
+						<Select
+							value={auditAction}
+							onValueChange={(val) => {
+								setAuditAction(val as ActivityActionFilter);
+								setAuditPage(1);
+							}}
+						>
+							<SelectTrigger
+								aria-label="Filter audit log by action"
+								className="w-52 h-8 text-xs"
+							>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="ALL">All Actions</SelectItem>
+								<SelectItem value="FILE_UPLOADED">FILE_UPLOADED</SelectItem>
+								<SelectItem value="FILE_DOWNLOADED">FILE_DOWNLOADED</SelectItem>
+								<SelectItem value="FILE_SHARED">FILE_SHARED</SelectItem>
+								<SelectItem value="FILE_SHARE_REVOKED">
+									FILE_SHARE_REVOKED
+								</SelectItem>
+								<SelectItem value="FILE_PERMISSION_UPDATED">
+									FILE_PERMISSION_UPDATED
+								</SelectItem>
+								<SelectItem value="FILE_VERSION_CREATED">
+									FILE_VERSION_CREATED
+								</SelectItem>
+								<SelectItem value="FILE_DELETED">FILE_DELETED</SelectItem>
+								<SelectItem value="FILE_RESTORED">FILE_RESTORED</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+
+					<div className="space-y-2">
+						{auditQuery.isLoading ? (
+							<div className="text-xs text-muted-foreground py-6 text-center">
+								Loading audit log…
+							</div>
+						) : (auditQuery.data?.items.length ?? 0) === 0 ? (
+							<div className="text-xs text-muted-foreground py-6 text-center border border-dashed border-border rounded-lg">
+								No audit events match this filter.
+							</div>
+						) : (
+							auditQuery.data?.items.map((item) => (
+								<div
+									key={item.id}
+									className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-border bg-secondary/20 px-3.5 py-2.5 text-xs"
+								>
+									<div className="flex items-center gap-2.5 min-w-0">
+										<Badge
+											variant="secondary"
+											className="font-mono text-[10px] shrink-0"
+										>
+											{item.action}
+										</Badge>
+										<span className="font-medium truncate">
+											{item.targetName ?? item.targetType}
+										</span>
+									</div>
+									<div className="flex items-center gap-3 text-[11px] font-mono text-muted-foreground shrink-0">
+										<span>
+											{item.actorName || item.actorEmail || 'Public / System'}
+										</span>
+										<span>{formatDate(item.createdAt)}</span>
+									</div>
+								</div>
+							))
+						)}
+					</div>
+
+					{auditQuery.data && auditQuery.data.pagination.totalPages > 1 && (
+						<div className="flex items-center justify-between pt-2 border-t border-border text-xs">
+							<span className="font-mono text-muted-foreground">
+								Page {auditQuery.data.pagination.page} of{' '}
+								{auditQuery.data.pagination.totalPages}
+							</span>
+							<div className="flex items-center gap-1.5">
+								<Button
+									type="button"
+									variant="outline"
+									size="xs"
+									disabled={auditPage <= 1}
+									onClick={() => setAuditPage((p) => Math.max(1, p - 1))}
+								>
+									<ChevronLeft className="size-3.5" aria-hidden="true" />
+									<span>Previous</span>
+								</Button>
+								<Button
+									type="button"
+									variant="outline"
+									size="xs"
+									disabled={auditPage >= auditQuery.data.pagination.totalPages}
+									onClick={() => setAuditPage((p) => p + 1)}
+								>
+									<span>Next</span>
+									<ChevronRight className="size-3.5" aria-hidden="true" />
+								</Button>
+							</div>
+						</div>
+					)}
+				</section>
+			)}
 		</div>
 	);
 }

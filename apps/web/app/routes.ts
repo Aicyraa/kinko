@@ -4,6 +4,7 @@ export default [
 	index('routes/home.tsx'),
 	route('signin', 'routes/signin.tsx'),
 	route('signup', 'routes/signup.tsx'),
+	route('s/:token', 'routes/share-public.tsx'),
 	layout('routes/app-layout.tsx', [
 		route('dashboard', 'routes/dashboard.tsx'),
 		route('files', 'routes/files.tsx'),

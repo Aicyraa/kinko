@@ -6,10 +6,14 @@ import { env } from './env.ts';
 import { activities } from './features/activities/activities.route.ts';
 import { analytics } from './features/analytics/analytics.route.ts';
 import { auth } from './features/auth/auth.route.ts';
+import { downloads } from './features/downloads/downloads.route.ts';
+import { favorites } from './features/favorites/favorites.route.ts';
 import { files } from './features/files/files.route.ts';
 import { folder } from './features/folder/folder.route.ts';
 import { health } from './features/health/health.route.ts';
+import { permissions } from './features/permissions/permissions.route.ts';
 import { search } from './features/search/search.route.ts';
+import { shares } from './features/shares/shares.route.ts';
 import { tenant } from './features/tenant/tenant.route.ts';
 import { trash } from './features/trash/trash.route.ts';
 import { uploads } from './features/uploads/uploads.route.ts';
@@ -62,7 +66,11 @@ const routes = app
 	.route('/trash', trash)
 	.route('/search', search)
 	.route('/analytics', analytics)
-	.route('/activities', activities);
+	.route('/activities', activities)
+	.route('/favorites', favorites)
+	.route('/shares', shares)
+	.route('/permissions', permissions)
+	.route('/downloads', downloads);
 
 export type AppType = typeof routes;
 export default app;

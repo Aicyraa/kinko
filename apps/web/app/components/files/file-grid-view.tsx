@@ -2,9 +2,13 @@ import {
 	Download,
 	Eye,
 	Folder,
+	FolderArchive,
 	FolderInput,
+	History,
 	MoreVertical,
 	Pencil,
+	Share2,
+	Star,
 	Trash2,
 } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -25,11 +29,21 @@ interface FileGridViewProps {
 	folders: FolderItem[];
 	files: FileItem[];
 	selectedKeys: Set<string>;
+	favoriteFileIds: Set<string>;
+	favoriteFolderIds: Set<string>;
 	onToggleSelect: (key: string) => void;
+	onToggleFavorite: (
+		targetType: 'FILE' | 'FOLDER',
+		targetId: string,
+		isFavorite: boolean,
+	) => void;
 	onRename: (target: VaultTarget) => void;
 	onMove: (target: VaultTarget) => void;
 	onDelete: (target: VaultTarget) => void;
 	onDownload: (fileId: string) => void;
+	onDownloadFolderZip: (folder: FolderItem) => void;
+	onShare: (file: FileItem) => void;
+	onVersions: (file: FileItem) => void;
 	onPreview: (file: FileItem) => void;
 }
 
@@ -37,11 +51,17 @@ export function FileGridView({
 	folders,
 	files,
 	selectedKeys,
+	favoriteFileIds,
+	favoriteFolderIds,
 	onToggleSelect,
+	onToggleFavorite,
 	onRename,
 	onMove,
 	onDelete,
 	onDownload,
+	onDownloadFolderZip,
+	onShare,
+	onVersions,
 	onPreview,
 }: FileGridViewProps) {
 	return (
@@ -55,6 +75,7 @@ export function FileGridView({
 						{folders.map((folder, idx) => {
 							const selKey = `folder:${folder.id}`;
 							const isSelected = selectedKeys.has(selKey);
+							const isFavorite = favoriteFolderIds.has(folder.id);
 							const target: VaultTarget = {
 								kind: 'folder',
 								id: folder.id,
@@ -96,6 +117,24 @@ export function FileGridView({
 										</Link>
 
 										<div className="flex items-center gap-1 shrink-0">
+											<motion.button
+												type="button"
+												whileTap={{ scale: 0.85 }}
+												aria-label={
+													isFavorite
+														? `Remove ${folder.name} from favorites`
+														: `Favorite ${folder.name}`
+												}
+												onClick={() =>
+													onToggleFavorite('FOLDER', folder.id, isFavorite)
+												}
+												className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+											>
+												<Star
+													className={`size-3.5 ${isFavorite ? 'fill-current text-foreground' : ''}`}
+													aria-hidden="true"
+												/>
+											</motion.button>
 											<Checkbox
 												aria-label={`Select ${folder.name}`}
 												checked={isSelected}
@@ -115,6 +154,15 @@ export function FileGridView({
 													</button>
 												</DropdownMenuTrigger>
 												<DropdownMenuContent align="end">
+													<DropdownMenuItem
+														onClick={() => onDownloadFolderZip(folder)}
+													>
+														<FolderArchive
+															className="size-4 mr-2"
+															aria-hidden="true"
+														/>
+														Download as ZIP
+													</DropdownMenuItem>
 													<DropdownMenuItem onClick={() => onRename(target)}>
 														<Pencil className="size-4 mr-2" aria-hidden="true" />
 														Rename
@@ -154,6 +202,7 @@ export function FileGridView({
 						{files.map((file, idx) => {
 							const selKey = `file:${file.id}`;
 							const isSelected = selectedKeys.has(selKey);
+							const isFavorite = favoriteFileIds.has(file.id);
 							const target: VaultTarget = {
 								kind: 'file',
 								id: file.id,
@@ -186,6 +235,24 @@ export function FileGridView({
 										</div>
 
 										<div className="flex items-center gap-1 shrink-0">
+											<motion.button
+												type="button"
+												whileTap={{ scale: 0.85 }}
+												aria-label={
+													isFavorite
+														? `Remove ${file.name} from favorites`
+														: `Favorite ${file.name}`
+												}
+												onClick={() =>
+													onToggleFavorite('FILE', file.id, isFavorite)
+												}
+												className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+											>
+												<Star
+													className={`size-3.5 ${isFavorite ? 'fill-current text-foreground' : ''}`}
+													aria-hidden="true"
+												/>
+											</motion.button>
 											<Checkbox
 												aria-label={`Select ${file.name}`}
 												checked={isSelected}
@@ -217,6 +284,14 @@ export function FileGridView({
 															aria-hidden="true"
 														/>
 														Download
+													</DropdownMenuItem>
+													<DropdownMenuItem onClick={() => onShare(file)}>
+														<Share2 className="size-4 mr-2" aria-hidden="true" />
+														Share &amp; Access
+													</DropdownMenuItem>
+													<DropdownMenuItem onClick={() => onVersions(file)}>
+														<History className="size-4 mr-2" aria-hidden="true" />
+														Version History
 													</DropdownMenuItem>
 													<DropdownMenuItem onClick={() => onRename(target)}>
 														<Pencil className="size-4 mr-2" aria-hidden="true" />
@@ -252,7 +327,12 @@ export function FileGridView({
 											{file.name}
 										</button>
 										<div className="flex items-center justify-between gap-2 text-[11px] font-mono text-muted-foreground tabular-nums">
-											<span>{getFileKindLabel(file.mimeType, file.name)}</span>
+											<span>
+												{getFileKindLabel(file.mimeType, file.name)}
+												{file.currentVersion > 1
+													? ` · v${file.currentVersion}`
+													: ''}
+											</span>
 											<span>{formatBytes(file.sizeBytes)}</span>
 										</div>
 									</div>

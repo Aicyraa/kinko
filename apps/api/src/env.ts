@@ -83,6 +83,13 @@ const storageSchema = z.object({
 		.positive()
 		.max(1_000_000_000, 'FILE_SIZE is in bytes; 1 GB maximum')
 		.describe('Maximum upload size in bytes'),
+	MAX_FILE_SIZE_BYTES: z.coerce
+		.number()
+		.int()
+		.positive()
+		.max(1_000_000_000)
+		.optional(),
+	TRASH_RETENTION_DAYS: z.coerce.number().int().min(1).max(365).default(30),
 });
 
 /* ------------------------------------------------------------------ *

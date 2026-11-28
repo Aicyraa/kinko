@@ -141,3 +141,7 @@ if (!parsed.success) {
 // Flat object keeps existing imports working: env.DATABASE_URL, env.PORT, etc.
 export const env = parsed.data;
 export type Env = z.infer<typeof envSchema>;
+
+export function getMaxFileSizeBytes(): number {
+	return env.MAX_FILE_SIZE_BYTES ?? env.FILE_SIZE;
+}

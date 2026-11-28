@@ -4,7 +4,16 @@ export type SuccessStatusCode = 200 | 201 | 202;
 
 export type RedirectStatusCode = 301 | 302 | 303 | 307 | 308;
 
-export type ClientErrorStatusCode = 400 | 401 | 403 | 404 | 409 | 422 | 429;
+export type ClientErrorStatusCode =
+	| 400
+	| 401
+	| 403
+	| 404
+	| 409
+	| 410
+	| 413
+	| 422
+	| 429;
 
 export type ServerErrorStatusCode = 500 | 502 | 503 | 504;
 

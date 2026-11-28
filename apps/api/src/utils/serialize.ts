@@ -1,7 +1,10 @@
 import type {
+	File,
+	Folder,
 	Tenant,
 	TenantAnalytics,
 	TenantMember,
+	Upload,
 	UserProfile,
 } from '../generated/prisma/client.js';
 
@@ -31,6 +34,49 @@ export interface UserProfileDTO {
 	id: string;
 	onboardingComplete: boolean;
 	defaultTenantId: string | null;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface FolderDTO {
+	id: string;
+	tenantId: string;
+	parentFolderId: string | null;
+	name: string;
+	createdById: string;
+	createdAt: string;
+	updatedAt: string;
+	deletedAt: string | null;
+}
+
+export interface FileDTO {
+	id: string;
+	tenantId: string;
+	folderId: string | null;
+	uploadedById: string;
+	name: string;
+	mimeType: string;
+	sizeBytes: number;
+	checksumSha256: string | null;
+	currentVersion: number;
+	createdAt: string;
+	updatedAt: string;
+	deletedAt: string | null;
+}
+
+export interface UploadDTO {
+	id: string;
+	tenantId: string;
+	folderId: string | null;
+	fileId: string | null;
+	uploadedById: string;
+	fileName: string;
+	mimeType: string;
+	declaredSizeBytes: number;
+	status: Upload['status'];
+	isMultipart: boolean;
+	expiresAt: string;
+	completedAt: string | null;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -66,5 +112,54 @@ export function serializeUserProfile(profile: UserProfile): UserProfileDTO {
 		defaultTenantId: profile.defaultTenantId,
 		createdAt: profile.createdAt.toISOString(),
 		updatedAt: profile.updatedAt.toISOString(),
+	};
+}
+
+export function serializeFolder(folder: Folder): FolderDTO {
+	return {
+		id: folder.id,
+		tenantId: folder.tenantId,
+		parentFolderId: folder.parentFolderId,
+		name: folder.name,
+		createdById: folder.createdById,
+		createdAt: folder.createdAt.toISOString(),
+		updatedAt: folder.updatedAt.toISOString(),
+		deletedAt: folder.deletedAt ? folder.deletedAt.toISOString() : null,
+	};
+}
+
+export function serializeFile(file: File): FileDTO {
+	return {
+		id: file.id,
+		tenantId: file.tenantId,
+		folderId: file.folderId,
+		uploadedById: file.uploadedById,
+		name: file.name,
+		mimeType: file.mimeType,
+		sizeBytes: Number(file.sizeBytes),
+		checksumSha256: file.checksumSha256,
+		currentVersion: file.currentVersion,
+		createdAt: file.createdAt.toISOString(),
+		updatedAt: file.updatedAt.toISOString(),
+		deletedAt: file.deletedAt ? file.deletedAt.toISOString() : null,
+	};
+}
+
+export function serializeUpload(upload: Upload): UploadDTO {
+	return {
+		id: upload.id,
+		tenantId: upload.tenantId,
+		folderId: upload.folderId,
+		fileId: upload.fileId,
+		uploadedById: upload.uploadedById,
+		fileName: upload.fileName,
+		mimeType: upload.mimeType,
+		declaredSizeBytes: Number(upload.declaredSizeBytes),
+		status: upload.status,
+		isMultipart: upload.isMultipart,
+		expiresAt: upload.expiresAt.toISOString(),
+		completedAt: upload.completedAt ? upload.completedAt.toISOString() : null,
+		createdAt: upload.createdAt.toISOString(),
+		updatedAt: upload.updatedAt.toISOString(),
 	};
 }

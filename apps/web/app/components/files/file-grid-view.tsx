@@ -1,5 +1,6 @@
 import {
 	Download,
+	Eye,
 	Folder,
 	FolderInput,
 	MoreVertical,
@@ -29,6 +30,7 @@ interface FileGridViewProps {
 	onMove: (target: VaultTarget) => void;
 	onDelete: (target: VaultTarget) => void;
 	onDownload: (fileId: string) => void;
+	onPreview: (file: FileItem) => void;
 }
 
 export function FileGridView({
@@ -40,6 +42,7 @@ export function FileGridView({
 	onMove,
 	onDelete,
 	onDownload,
+	onPreview,
 }: FileGridViewProps) {
 	return (
 		<div className="space-y-6">
@@ -202,6 +205,10 @@ export function FileGridView({
 													</button>
 												</DropdownMenuTrigger>
 												<DropdownMenuContent align="end">
+													<DropdownMenuItem onClick={() => onPreview(file)}>
+														<Eye className="size-4 mr-2" aria-hidden="true" />
+														Preview
+													</DropdownMenuItem>
 													<DropdownMenuItem
 														onClick={() => onDownload(file.id)}
 													>
@@ -236,9 +243,14 @@ export function FileGridView({
 									</div>
 
 									<div className="space-y-1 min-w-0">
-										<h3 className="text-sm font-medium truncate" title={file.name}>
+										<button
+											type="button"
+											onClick={() => onPreview(file)}
+											title={file.name}
+											className="w-full text-left text-sm font-medium truncate hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+										>
 											{file.name}
-										</h3>
+										</button>
 										<div className="flex items-center justify-between gap-2 text-[11px] font-mono text-muted-foreground tabular-nums">
 											<span>{getFileKindLabel(file.mimeType, file.name)}</span>
 											<span>{formatBytes(file.sizeBytes)}</span>

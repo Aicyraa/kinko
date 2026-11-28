@@ -7,7 +7,9 @@ import { auth } from './features/auth/auth.route.ts';
 import { files } from './features/files/files.route.ts';
 import { folder } from './features/folder/folder.route.ts';
 import { health } from './features/health/health.route.ts';
+import { search } from './features/search/search.route.ts';
 import { tenant } from './features/tenant/tenant.route.ts';
+import { trash } from './features/trash/trash.route.ts';
 import { uploads } from './features/uploads/uploads.route.ts';
 import { errorHandler } from './middleware/errorHandler.ts';
 import { requestLogger } from './middleware/logger.ts';
@@ -54,7 +56,9 @@ const routes = app
 	.route('/tenants', tenant)
 	.route('/folders', folder)
 	.route('/files', files)
-	.route('/uploads', uploads);
+	.route('/uploads', uploads)
+	.route('/trash', trash)
+	.route('/search', search);
 
 export type AppType = typeof routes;
 export default app;

@@ -32,7 +32,7 @@ import {
 	useRenameFolder,
 } from '../../hooks/use-files';
 import { useUploadQueue } from '../../hooks/use-upload-queue';
-import { ApiError } from '../../lib/api';
+import { ApiError, type FileItem } from '../../lib/api';
 import { getActiveTenant } from '../layout/app-shell';
 import { Button } from '../ui/button';
 import {
@@ -52,6 +52,7 @@ import {
 } from './file-dialogs';
 import { FileGridView } from './file-grid-view';
 import { FileListView } from './file-list-view';
+import { FilePreviewModal } from './file-preview-modal';
 import {
 	FileManagerEmpty,
 	FileManagerError,
@@ -87,6 +88,7 @@ export function FileManagerView({ folderId }: { folderId: string | null }) {
 	const [renameTarget, setRenameTarget] = useState<VaultTarget | null>(null);
 	const [moveTargets, setMoveTargets] = useState<VaultTarget[]>([]);
 	const [deleteTargets, setDeleteTargets] = useState<VaultTarget[]>([]);
+	const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const { enqueueFiles } = useUploadQueue();
@@ -505,6 +507,7 @@ export function FileManagerView({ folderId }: { folderId: string | null }) {
 					onMove={(t) => setMoveTargets([t])}
 					onDelete={(t) => setDeleteTargets([t])}
 					onDownload={(id) => void handleDownload(id)}
+					onPreview={setPreviewFile}
 				/>
 			) : (
 				<FileListView
@@ -518,6 +521,7 @@ export function FileManagerView({ folderId }: { folderId: string | null }) {
 					onMove={(t) => setMoveTargets([t])}
 					onDelete={(t) => setDeleteTargets([t])}
 					onDownload={(id) => void handleDownload(id)}
+					onPreview={setPreviewFile}
 				/>
 			)}
 
@@ -556,6 +560,14 @@ export function FileManagerView({ folderId }: { folderId: string | null }) {
 				onClose={() => setDeleteTargets([])}
 				onConfirm={handleDelete}
 				isPending={deleteFolder.isPending || deleteFile.isPending}
+			/>
+
+			<FilePreviewModal
+				file={previewFile}
+				files={files}
+				tenantId={tenantId}
+				onClose={() => setPreviewFile(null)}
+				onSelectFile={setPreviewFile}
 			/>
 		</div>
 	);
